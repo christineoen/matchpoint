@@ -5,8 +5,6 @@ export type Gender = 'M' | 'F'
 export type Grade = 1 | 2 | 3 | 4 | 5 // 1=3A, 2=3, 3=2B, 4=2A, 5=2
 export type MatchFormat = 'Same-Sex' | 'Mixed'
 
-export type MatchFormat = 'Same-Sex' | 'Mixed'
-
 export interface Player {
   id: string
   name: string
