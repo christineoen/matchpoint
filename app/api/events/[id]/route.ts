@@ -13,15 +13,16 @@ function getSupabaseClient() {
 // GET /api/events/[id] - Get single event
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: eventId } = await params
     const supabase = getSupabaseClient()
     
     const { data: event, error } = await supabase
       .from('events')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', eventId)
       .single()
 
     if (error) throw error
@@ -43,16 +44,17 @@ export async function GET(
 // PATCH /api/events/[id] - Update event
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: eventId } = await params
     const supabase = getSupabaseClient()
     const body = await request.json()
 
     const { data: event, error } = await supabase
       .from('events')
-      .update(body)
-      .eq('id', params.id)
+      .update(body as any)
+      .eq('id', eventId)
       .select()
       .single()
 
@@ -71,12 +73,13 @@ export async function PATCH(
 // DELETE /api/events/[id] - Delete event
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: eventId } = await params
     const supabase = getSupabaseClient()
     
-    const { error } = await supabase.from('events').delete().eq('id', params.id)
+    const { error } = await supabase.from('events').delete().eq('id', eventId)
 
     if (error) throw error
 
