@@ -34,12 +34,12 @@ export async function GET(
         )
       `)
       .eq('event_id', eventId)
-      .order('arrival_order', { ascending: true })
+      .order('arrival_order', { ascending: true }) as any
 
     if (error) throw error
 
     // Transform to simpler format
-    const players = (data || []).map((ep: any) => ({
+    const players = data?.map((ep: any) => ({
       player_id: ep.player.id,
       player_name: ep.player.name,
       grade: ep.player.grade,

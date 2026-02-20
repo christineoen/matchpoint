@@ -267,7 +267,7 @@ export default function EventDetailPage() {
     const search = searchTerm.toLowerCase()
     return (
       p.name.toLowerCase().includes(search) ||
-      translateGrade(p.grade as 1 | 2 | 3 | 4 | 5).toLowerCase().includes(search)
+      translateGrade(p.grade).toLowerCase().includes(search)
     )
   })
   const setNumbers = Object.keys(matchesBySet).map(Number).sort((a, b) => a - b)
@@ -492,7 +492,7 @@ export default function EventDetailPage() {
                           }`}>
                           <div className="font-semibold">{player.name}</div>
                           <div className="flex gap-2 text-sm text-gray-600">
-                            <span>Grade {translateGrade(player.grade as 1 | 2 | 3 | 4 | 5)}</span>
+                            <span>Grade {translateGrade(player.grade)}</span>
                             <span>•</span>
                             <span>{player.gender === 'M' ? 'Male' : 'Female'}</span>
                             {player.nhc && <><span>•</span><span className="text-orange-600">NHC</span></>}
@@ -536,7 +536,7 @@ export default function EventDetailPage() {
                                         <span className="text-sm text-gray-600">{player.gender}</span>
                                         <span className="text-gray-600 font-bold">•</span>
                                         <span className="text-sm text-gray-600">
-                                          {translateGrade(player.grade as 1 | 2 | 3 | 4 | 5)}{player.plus_minus || ''}
+                                          {translateGrade(player.grade)}{player.plus_minus || ''}
                                         </span>
                                       </div>
                                     ))}
@@ -550,7 +550,7 @@ export default function EventDetailPage() {
                                         <span className="text-sm text-gray-600">{player.gender}</span>
                                         <span className="text-gray-600 font-bold">•</span>
                                         <span className="text-sm text-gray-600">
-                                          {translateGrade(player.grade as 1 | 2 | 3 | 4 | 5)}{player.plus_minus || ''}
+                                          {translateGrade(player.grade)}{player.plus_minus || ''}
                                         </span>
                                       </div>
                                     ))}

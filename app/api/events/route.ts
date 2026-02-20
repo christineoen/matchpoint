@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     
     const { data: event, error } = await (supabase as any)
       .from('events')
-      .insert(insertData)
+      .insert(insertData as any)
       .select()
       .single()
 

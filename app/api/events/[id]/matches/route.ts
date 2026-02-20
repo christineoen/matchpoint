@@ -33,14 +33,14 @@ export async function GET(
         )
       `)
       .eq('event_id', eventId)
-      .order('set_number', { ascending: true })
+      .order('set_number', { ascending: true }) as any
 
     if (error) throw error
 
     // Group by set number
     const matchesBySet: Record<number, any[]> = {}
     
-    ;(matches || []).forEach((match: any) => {
+    matches?.forEach((match: any) => {
       if (!matchesBySet[match.set_number]) {
         matchesBySet[match.set_number] = []
       }
