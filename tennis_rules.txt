@@ -1,0 +1,117 @@
+How the Social Tennis Match Maker Works
+Introduction
+The Social Tennis Match Maker is a program that automatically generates doubles tennis matches based on the players and courts available for each set. It aims to create fair, competitive matches while respecting player preferences and avoiding repetition throughout the session.
+This document explains the step-by-step process the program uses to generate matches, using Set 1 with a same-sex doubles format preference as the example.
+
+What the Program Needs to Know
+Before generating matches, the program requires two pieces of information:
+Which courts are available for this set
+Which players are available (not resting or sitting out)
+For each player, the program knows:
+Name
+Gender (M or F)
+Playing grade (2 through 3A)
+Plus/minus designation (+, −, or blank) indicating whether they play above or below average for their grade
+Special flags such as "no hard court" (NHC)
+
+Phase 1: Sorting the Players
+The program begins by sorting all available players into a ranked list, with separate lists for men and women.
+Players are ordered from strongest to weakest:
+First by grade 
+Within each grade, by plus/minus designation (+, “ “,-)
+Example:
+2+ man
+2 men (blank)
+2− man
+2A+ men
+Etc.
+The women are sorted the same way in their own list.
+
+Phase 2: Forming Initial Matches
+The program creates matches by working through each grade from highest to lowest. Within each grade, it follows a specific sequence.
+Phase 2a:  Initial processing
+Same sex format:
+The program creates as many men's and women’s doubles matches as possible using only players from the current grade.  It uses the list in the order formed in Step 1, i.e. the first four men on the list play together, etc.  It continues until fewer than four men or four women remain at that grade.
+Mixed doubles format
+The program creates as many mixed doubles matches as possible using only players from the current grade, continuing until fewer than two men or women remain.  It uses players in order provided from step 1.
+Phase 2b:  Handling Leftovers
+After completing the initial processing, there may be men and/or women left over at that grade.  The handling differs depending on the format preference.
+Phase 2.b.1:  Same-Sex Format Preference (using grade 2 as first example)
+Scenario A: 3 leftover grade 2 men
+
+Scenario B: 2 leftover grade 2 men
+
+Scenario C: 1 leftover grade 2 man
+
+And the same as above for women.
+
+Phase 2.b.2: Mixed Doubles Format Preference
+In mixed doubles format, the in-grade matching creates matches using 2 men + 2 women from the same grade. Leftovers occur when there's a gender imbalance at that grade.
+Scenario A: 3 leftover grade 2 men (for example)
+
+Scenario B: 2 leftover grade 2 men
+
+Scenario C: 1 leftover grade 2 man
+
+And the same as above for women.
+Key difference from same-sex format: In mixed doubles format, the program tries in-grade mixed gender (3M+1W or 1M+3W) much earlier in the priority order, before any cross-grade options. This reflects the format's preference for keeping mixed gender combinations where possible.
+Step 3: Repeat for Each Grade
+Once all players at Grade 2 are assigned, the program moves to Grade 2A and repeats the entire process, then Grade 2B, and so on.
+Step 5: Final Cleanup
+After processing all grades, if any players remain unassigned, the program forms whatever matches are possible from the remaining players, including mixed doubles or mixed-gender combinations.  The final four players are placed together in the most balanced match possible, which might not be very good.
+
+Phase 4: Balancing the Teams
+After the initial matches are formed, the program checks whether each match is competitively balanced.
+Each grade is assigned a point value (A=5, B=4, C=3, D=2, E=1). The program calculates the total points for each team. If there is a gap of 2 or more points between the teams, it attempts to balance them.
+Method: The program tests intra-match swaps, only exchanging players between Team 1 and Team 2 within the same match. With four players, there are three possible swap combinations:
+Team 1 Player 1 ↔ Team 2 Player 1
+Team 1 Player 1 ↔ Team 2 Player 2
+Team 1 Player 2 ↔ Team 2 Player 1
+For each swap, the program:
+Tests the swap on a temporary copy
+Verifies it would not create a prohibited 2M vs 2W match
+Calculates the resulting gap between teams
+The program applies whichever swap produces the smallest gap.
+
+Phase 5: Competitiveness Optimisation
+This phase addresses a different issue than Phase 3. A match can be balanced (equal team totals) yet still be uncompetitive if the partnerships themselves are poorly matched.
+Definition: A match is considered uncompetitive if either partnership has a grade gap of 2 or more between the partners.
+A + C partnership = uncompetitive (gap of 2)
+A + B partnership = acceptable (gap of 1)
+Example: An A+C vs A+C match is balanced (8 points vs 8 points) but uncompetitive because neither partnership is evenly matched.
+Method: The program identifies pairs of uncompetitive matches and swaps players between them. It takes the two weakest players from one match and the two strongest from another, then exchanges them. This can transform two poorly constructed matches into two better ones.
+
+Phases 6, 7, and 8: Refinement Steps
+These phases take effect only in Set 2 and beyond, as they rely on match history from earlier sets.
+Phase 6: Fixing Repeat Partnerships
+The program checks whether any two players partnered in this set were also partners in a previous set. If so, it attempts to swap one of them with another player to break up the repeat.
+Constraint: The program will only swap players of the same gender and same grade. This conservative approach ensures the swap does not disrupt match balance.
+Before accepting any swap, the program verifies it will not create a new repeat partnership elsewhere.
+Phase 7: Fixing Repeat Opponents
+The program checks whether any two players facing each other as opponents in this set were also opponents in either of the previous two sets. If so, it attempts to rearrange the matches.
+Constraint: As with Phase 6, it will only swap players of the same gender and same grade, and only if the swap does not create new repeat partnerships or opponents.
+Phase 8: Plus/Minus Adjustments
+This phase has two steps.
+Step 1: Redistributing +/− players across matches
+Due to how matches are formed from the sorted list, minus players can sometimes end up in earlier (stronger) matches while plus players end up in later (weaker) matches.
+The program looks for these situations: if a minus player of a certain grade and gender is in an earlier match, and a plus player of the same grade and gender is in a later match, it will swap them.  Exception:  if a new repeat partnership or a new repeat opponent is formed, then it will not perform the swap.
+This moves plus players up and minus players down. The practical effect: in cross-grade matches (such as A's and B's together), B+ players are more likely to partner with A's, while B− players are more likely to partner with C's.
+The program also performs a secondary pass to move blank (regular) players down when plus players are positioned below them.
+Step 2: Balancing within individual matches
+For matches where all four players share the same grade, the program checks for a specific imbalance: one team having both plus players while the other team has neither (or the same pattern with minus players).
+If it finds a 2+ vs 0+ or 2− vs 0− situation, it performs an intra-match swap to distribute the plus or minus players across both teams.
+Protection: Before accepting any swap in either step, the program verifies it will not create new repeat partnerships or repeat opponents.
+
+Rules the Program Will Not Break
+Throughout all phases, the program adheres to certain inviolable rules:
+Never create a 2 Men vs 2 Women match
+Never create a new problem while fixing an existing one (such as creating a repeat partnership while fixing a repeat opponent)
+Only swap players of the same grade and gender when fixing repeats
+Maintain matches that are as balanced and competitive as possible
+
+Output
+When processing is complete, the program displays the recommended matches for the set, showing:
+Court assignment for each match
+The two teams with player names and grades
+Any warnings or flags (such as repeat partnerships that could not be resolved)
+The operator can then accept the matches, make manual adjustments, or regenerate if needed.
