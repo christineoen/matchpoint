@@ -85,7 +85,7 @@ export async function POST(
       unavailable_sets: {},
     }))
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('event_players')
       .insert(insertData)
 

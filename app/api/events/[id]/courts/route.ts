@@ -77,7 +77,7 @@ export async function POST(
       is_available: true,
     }))
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('event_courts')
       .insert(insertData)
 
