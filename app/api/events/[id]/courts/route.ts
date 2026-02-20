@@ -11,9 +11,10 @@ function getSupabaseClient() {
 // GET /api/events/[id]/courts - Get courts for event
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: eventId } = await params
     const supabase = getSupabaseClient()
     
     const { data, error } = await supabase
@@ -28,7 +29,7 @@ export async function GET(
           surface_type
         )
       `)
-      .eq('event_id', params.id)
+      .eq('event_id', eventId)
       .order('selection_order', { ascending: true })
 
     if (error) throw error
@@ -54,9 +55,10 @@ export async function GET(
 // POST /api/events/[id]/courts - Save courts for event
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: eventId } = await params
     const supabase = getSupabaseClient()
     const body = await request.json()
     const { courts } = body
@@ -65,11 +67,11 @@ export async function POST(
     await supabase
       .from('event_courts')
       .delete()
-      .eq('event_id', params.id)
+      .eq('event_id', eventId)
 
     // Insert new courts
     const insertData = courts.map((court: any) => ({
-      event_id: params.id,
+      event_id: eventId,
       court_id: court.court_id,
       selection_order: court.selection_order,
       is_available: true,

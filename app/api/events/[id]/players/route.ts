@@ -11,9 +11,10 @@ function getSupabaseClient() {
 // GET /api/events/[id]/players - Get players for event
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: eventId } = await params
     const supabase = getSupabaseClient()
     
     const { data, error } = await supabase
@@ -32,7 +33,7 @@ export async function GET(
           plus_minus
         )
       `)
-      .eq('event_id', params.id)
+      .eq('event_id', eventId)
       .order('arrival_order', { ascending: true })
 
     if (error) throw error
@@ -61,9 +62,10 @@ export async function GET(
 // POST /api/events/[id]/players - Save players for event
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: eventId } = await params
     const supabase = getSupabaseClient()
     const body = await request.json()
     const { players } = body
@@ -72,11 +74,11 @@ export async function POST(
     await supabase
       .from('event_players')
       .delete()
-      .eq('event_id', params.id)
+      .eq('event_id', eventId)
 
     // Insert new players
     const insertData = players.map((player: any) => ({
-      event_id: params.id,
+      event_id: eventId,
       player_id: player.player_id,
       arrival_order: player.arrival_order,
       is_resting: false,
