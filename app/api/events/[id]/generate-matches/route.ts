@@ -106,7 +106,7 @@ export async function POST(
     }
 
     // Save matches to database
-    const savedMatches = []
+    const savedMatches: any[] = []
     
     // Create a map of court names to court IDs for easier lookup
     const courtMap = new Map<string, string>()
