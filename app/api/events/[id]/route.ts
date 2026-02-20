@@ -53,7 +53,6 @@ export async function PATCH(
 
     const { data: event, error } = await (supabase as any)
       .from('events')
-      // @ts-expect-error - Supabase type inference issue with dynamic updates
       .update(body)
       .eq('id', eventId)
       .select()
