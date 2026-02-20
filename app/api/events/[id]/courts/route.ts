@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/database-types'
+import type { EventCourtWithCourt } from '@/lib/supabase/query-types'
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -30,12 +31,15 @@ export async function GET(
         )
       `)
       .eq('event_id', eventId)
-      .order('selection_order', { ascending: true }) as any
+      .order('selection_order', { ascending: true })
 
     if (error) throw error
 
+    // Use 'as unknown as Type' for better type safety than 'as any'
+    const eventCourts = data as unknown as EventCourtWithCourt[]
+
     // Transform to simpler format
-    const courts = data?.map((ec: any) => ({
+    const courts = eventCourts?.map(ec => ({
       court_id: ec.court.id,
       court_name: ec.court.name,
       surface_type: ec.court.surface_type,
@@ -69,7 +73,7 @@ export async function POST(
       .delete()
       .eq('event_id', eventId)
 
-    // Insert new courts
+    // Insert new courts - use 'as any' only on the insert operation
     const insertData = courts.map((court: any) => ({
       event_id: eventId,
       court_id: court.court_id,
@@ -79,7 +83,7 @@ export async function POST(
 
     const { error } = await supabase
       .from('event_courts')
-      .insert(insertData)
+      .insert(insertData as any)
 
     if (error) throw error
 
