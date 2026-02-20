@@ -21,8 +21,13 @@ export const GRADE_VALUE: Record<string, Grade> = {
 /**
  * Convert internal grade number to display string
  */
-export function translateGrade(grade: Grade): string {
-  return GRADE_DISPLAY[grade]
+export function translateGrade(grade: number): string {
+  // Validate and cast to Grade type
+  if (grade >= 1 && grade <= 5) {
+    return GRADE_DISPLAY[grade as Grade]
+  }
+  // Fallback for invalid grades
+  return GRADE_DISPLAY[1]
 }
 
 /**

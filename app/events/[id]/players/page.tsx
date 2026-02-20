@@ -170,7 +170,7 @@ export default function PlayersPage() {
                       <div>
                         <span className="font-semibold">{ep.player_name}</span>
                         <div className="flex gap-2 text-sm text-gray-600">
-                          <span>Grade {translateGrade(ep.grade as 1 | 2 | 3 | 4 | 5)}</span>
+                          <span>Grade {translateGrade(ep.grade)}</span>
                           <span>•</span>
                           <span>{ep.gender === 'M' ? 'Male' : 'Female'}</span>
                           {ep.nhc && (
