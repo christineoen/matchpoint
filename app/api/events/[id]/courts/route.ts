@@ -35,12 +35,12 @@ export async function GET(
     if (error) throw error
 
     // Transform to simpler format
-    const courts = data?.map(ec => ({
+    const courts = (data || []).map((ec: any) => ({
       court_id: ec.court.id,
       court_name: ec.court.name,
       surface_type: ec.court.surface_type,
       selection_order: ec.selection_order,
-    })) || []
+    }))
 
     return NextResponse.json({ courts })
   } catch (error) {

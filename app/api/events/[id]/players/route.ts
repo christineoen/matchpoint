@@ -39,7 +39,7 @@ export async function GET(
     if (error) throw error
 
     // Transform to simpler format
-    const players = data?.map(ep => ({
+    const players = (data || []).map((ep: any) => ({
       player_id: ep.player.id,
       player_name: ep.player.name,
       grade: ep.player.grade,
@@ -47,7 +47,7 @@ export async function GET(
       nhc: ep.player.nhc,
       plus_minus: ep.player.plus_minus,
       arrival_order: ep.arrival_order,
-    })) || []
+    }))
 
     return NextResponse.json({ players })
   } catch (error) {
