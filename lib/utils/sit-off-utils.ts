@@ -29,7 +29,7 @@ export function calculateSitOffs(
   
   // Count already sitting off
   const sitOffPlayers = availablePlayers.filter(p => p.so).length
-  const activePlayers = availablePlayers.filter(p => !p.so).length
+  const activePlayersCount = availablePlayers.filter(p => !p.so).length
   
   const totalAvailablePlayers = availablePlayers.length
   const maxCourtCapacity = courtCount * 4
@@ -47,13 +47,14 @@ export function calculateSitOffs(
   const playingPlayers = totalAvailablePlayers - playersNeededToSitOff
   const courtsNeeded = Math.floor(playingPlayers / 4)
   
-  // Count by gender
-  const maleCount = activePlayers.filter(p => p.gender === 'M').length
-  const femaleCount = activePlayers.filter(p => p.gender === 'F').length
+  // Count by gender (use the array, not the count)
+  const activePlayersArray = availablePlayers.filter(p => !p.so)
+  const maleCount = activePlayersArray.filter(p => p.gender === 'M').length
+  const femaleCount = activePlayersArray.filter(p => p.gender === 'F').length
   
   return {
     totalAvailablePlayers,
-    activePlayers,
+    activePlayers: activePlayersCount,
     sitOffPlayers,
     courtsNeeded,
     courtsAvailable: courtCount,

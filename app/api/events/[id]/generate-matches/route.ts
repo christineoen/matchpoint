@@ -25,11 +25,11 @@ export async function POST(
       .from('event_courts')
       .select('court:courts(id, name, surface_type)')
       .eq('event_id', eventId)
-      .order('selection_order', { ascending: true })
+      .order('selection_order', { ascending: true }) as any
 
     if (courtsError) throw courtsError
 
-    const courts = eventCourts.map(ec => ({
+    const courts = eventCourts.map((ec: any) => ({
       name: ec.court.name,
       surfaceType: ec.court.surface_type,
     }))
@@ -44,12 +44,12 @@ export async function POST(
         player:players(id, name, grade, gender, nhc, plus_minus)
       `)
       .eq('event_id', eventId)
-      .order('arrival_order', { ascending: true })
+      .order('arrival_order', { ascending: true }) as any
 
     if (playersError) throw playersError
 
     // Transform to EventPlayer format
-    const players: EventPlayer[] = eventPlayersData.map((ep, index) => ({
+    const players: EventPlayer[] = eventPlayersData.map((ep: any, index: number) => ({
       id: ep.player.id,
       name: ep.player.name,
       grade: ep.player.grade,
@@ -106,11 +106,11 @@ export async function POST(
     }
 
     // Save matches to database
-    const savedMatches = []
+    const savedMatches: any[] = []
     
     // Create a map of court names to court IDs for easier lookup
     const courtMap = new Map<string, string>()
-    for (const ec of eventCourts) {
+    for (const ec of eventCourts as any[]) {
       courtMap.set(ec.court.name, ec.court.id)
     }
     
@@ -138,9 +138,9 @@ export async function POST(
           format: match.format,
           is_manual: match.isManual,
           notes: match.note || null,
-        })
+        } as any)
         .select()
-        .single()
+        .single() as any
 
       if (matchError) {
         console.error('Error saving match:', matchError)
@@ -150,20 +150,20 @@ export async function POST(
       // Insert match players
       const matchPlayers = [
         ...match.team1.map((p, idx) => ({
-          match_id: matchData.id,
+          match_id: (matchData as any).id,
           player_id: p.id,
           team: 1 as const,
           position: idx + 1,
         })),
         ...match.team2.map((p, idx) => ({
-          match_id: matchData.id,
+          match_id: (matchData as any).id,
           player_id: p.id,
           team: 2 as const,
           position: idx + 1,
         })),
       ]
 
-      await supabase.from('match_players').insert(matchPlayers)
+      await supabase.from('match_players').insert(matchPlayers as any)
 
       savedMatches.push(matchData)
     }

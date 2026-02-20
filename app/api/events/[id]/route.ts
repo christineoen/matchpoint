@@ -53,7 +53,8 @@ export async function PATCH(
 
     const { data: event, error } = await supabase
       .from('events')
-      .update(body as any)
+      // @ts-expect-error - Supabase type inference issue with dynamic updates
+      .update(body)
       .eq('id', eventId)
       .select()
       .single()
