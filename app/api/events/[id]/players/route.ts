@@ -47,7 +47,7 @@ export async function GET(
       nhc: ep.player.nhc,
       plus_minus: ep.player.plus_minus,
       arrival_order: ep.arrival_order,
-    })) || []
+    }))
 
     return NextResponse.json({ players })
   } catch (error) {
@@ -85,7 +85,7 @@ export async function POST(
       unavailable_sets: {},
     }))
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('event_players')
       .insert(insertData)
 

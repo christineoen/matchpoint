@@ -44,7 +44,7 @@ export async function GET(
       court_name: ec.court.name,
       surface_type: ec.court.surface_type,
       selection_order: ec.selection_order,
-    })) || []
+    }))
 
     return NextResponse.json({ courts })
   } catch (error) {
@@ -81,7 +81,7 @@ export async function POST(
       is_available: true,
     }))
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('event_courts')
       .insert(insertData as any)
 
