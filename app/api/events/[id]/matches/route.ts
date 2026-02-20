@@ -40,21 +40,21 @@ export async function GET(
     // Group by set number
     const matchesBySet: Record<number, any[]> = {}
     
-    matches?.forEach(match => {
+    ;(matches || []).forEach((match: any) => {
       if (!matchesBySet[match.set_number]) {
         matchesBySet[match.set_number] = []
       }
       
       // Organize players by team
       const team1 = match.match_players
-        .filter(mp => mp.team === 1)
-        .sort((a, b) => (a.position || 0) - (b.position || 0))
-        .map(mp => mp.player)
+        .filter((mp: any) => mp.team === 1)
+        .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
+        .map((mp: any) => mp.player)
       
       const team2 = match.match_players
-        .filter(mp => mp.team === 2)
-        .sort((a, b) => (a.position || 0) - (b.position || 0))
-        .map(mp => mp.player)
+        .filter((mp: any) => mp.team === 2)
+        .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
+        .map((mp: any) => mp.player)
       
       matchesBySet[match.set_number].push({
         id: match.id,

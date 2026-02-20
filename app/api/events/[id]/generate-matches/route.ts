@@ -29,7 +29,7 @@ export async function POST(
 
     if (courtsError) throw courtsError
 
-    const courts = eventCourts.map(ec => ({
+    const courts = (eventCourts || []).map((ec: any) => ({
       name: ec.court.name,
       surfaceType: ec.court.surface_type,
     }))
@@ -49,7 +49,7 @@ export async function POST(
     if (playersError) throw playersError
 
     // Transform to EventPlayer format
-    const players: EventPlayer[] = eventPlayersData.map((ep, index) => ({
+    const players: EventPlayer[] = (eventPlayersData || []).map((ep: any, index: number) => ({
       id: ep.player.id,
       name: ep.player.name,
       grade: ep.player.grade,
@@ -106,12 +106,12 @@ export async function POST(
     }
 
     // Save matches to database
-    const savedMatches = []
+    const savedMatches: any[] = []
     
     // Create a map of court names to court IDs for easier lookup
     const courtMap = new Map<string, string>()
-    for (const ec of eventCourts) {
-      courtMap.set(ec.court.name, ec.court.id)
+    for (const ec of (eventCourts || [])) {
+      courtMap.set((ec as any).court.name, (ec as any).court.id)
     }
     
     console.log('Court map:', Array.from(courtMap.entries()))
@@ -129,7 +129,7 @@ export async function POST(
       console.log('Found court ID:', courtId, 'for court:', match.court)
 
       // Insert match
-      const { data: matchData, error: matchError } = await supabase
+      const { data: matchData, error: matchError } = await (supabase as any)
         .from('matches')
         .insert({
           event_id: eventId,
@@ -163,7 +163,7 @@ export async function POST(
         })),
       ]
 
-      await supabase.from('match_players').insert(matchPlayers)
+      await (supabase as any).from('match_players').insert(matchPlayers)
 
       savedMatches.push(matchData)
     }

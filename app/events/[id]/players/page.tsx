@@ -109,7 +109,7 @@ export default function PlayersPage() {
     const search = searchTerm.toLowerCase()
     return (
       p.name.toLowerCase().includes(search) ||
-      translateGrade(p.grade).toLowerCase().includes(search)
+      translateGrade(p.grade as 1 | 2 | 3 | 4 | 5).toLowerCase().includes(search)
     )
   })
 
@@ -231,7 +231,7 @@ export default function PlayersPage() {
                   >
                     <div className="font-semibold">{player.name}</div>
                     <div className="flex gap-2 text-sm text-gray-600">
-                      <span>Grade {translateGrade(player.grade)}</span>
+                      <span>Grade {translateGrade(player.grade as 1 | 2 | 3 | 4 | 5)}</span>
                       <span>•</span>
                       <span>{player.gender === 'M' ? 'Male' : 'Female'}</span>
                       {player.nhc && (

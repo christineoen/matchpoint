@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     
     console.log('Inserting into Supabase:', insertData)
     
-    const { data: event, error } = await supabase
+    const { data: event, error } = await (supabase as any)
       .from('events')
       .insert(insertData)
       .select()
