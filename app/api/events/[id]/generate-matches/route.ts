@@ -129,7 +129,7 @@ export async function POST(
       console.log('Found court ID:', courtId, 'for court:', match.court)
 
       // Insert match
-      const { data: matchData, error: matchError } = await supabase
+      const { data: matchData, error: matchError } = await (supabase as any)
         .from('matches')
         .insert({
           event_id: eventId,
@@ -163,7 +163,7 @@ export async function POST(
         })),
       ]
 
-      await supabase.from('match_players').insert(matchPlayers)
+      await (supabase as any).from('match_players').insert(matchPlayers)
 
       savedMatches.push(matchData)
     }
