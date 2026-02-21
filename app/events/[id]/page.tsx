@@ -313,7 +313,7 @@ export default function EventDetailPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <Link href="/events" className="text-primary hover:underline mb-4 inline-block">
+          <Link href="/" className="text-primary hover:underline mb-4 inline-block">
             ← Back to Events
           </Link>
           <div className="flex justify-between items-start">
