@@ -417,6 +417,18 @@ CREATE POLICY "Users can view matches"
   );
 
 CREATE POLICY "Organizers can manage matches"
+  ON matches FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM events e
+      JOIN club_members cm ON cm.club_id = e.club_id
+      WHERE e.id = matches.event_id
+        AND cm.user_id = auth.uid()
+        AND cm.role IN ('admin', 'organizer')
+    )
+  );
+
+CREATE POLICY "Organizers can manage events"
   ON events FOR ALL
   USING (
     EXISTS (
@@ -439,6 +451,19 @@ CREATE POLICY "Users can view match players"
       JOIN club_members cm ON cm.club_id = e.club_id
       WHERE m.id = match_players.match_id
         AND cm.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Organizers can manage match players"
+  ON match_players FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM matches m
+      JOIN events e ON e.id = m.event_id
+      JOIN club_members cm ON cm.club_id = e.club_id
+      WHERE m.id = match_players.match_id
+        AND cm.user_id = auth.uid()
+        AND cm.role IN ('admin', 'organizer')
     )
   );
 

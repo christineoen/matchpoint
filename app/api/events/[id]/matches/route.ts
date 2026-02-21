@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server-auth'
 import type { Database } from '@/database-types'
-
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  return createClient<Database>(supabaseUrl, supabaseKey)
-}
 
 // GET /api/events/[id]/matches - Get matches for event
 export async function GET(
@@ -15,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { id: eventId } = await params
-    const supabase = getSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     
     const { data: matches, error } = await supabase
       .from('matches')
