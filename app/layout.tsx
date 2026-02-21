@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import Header from './components/Header'
+import ConditionalHeader from './components/ConditionalHeader'
+import { Inter } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Tennis Match Maker',
@@ -14,8 +17,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
-        <Header />
+      <body className={inter.className}>
+        <ConditionalHeader />
         {children}
       </body>
     </html>

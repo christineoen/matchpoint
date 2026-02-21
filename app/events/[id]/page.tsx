@@ -42,14 +42,14 @@ interface Match {
   team2: MatchPlayer[]
 }
 
-type TabType = 'courts' | 'players' | 'matches'
+type StepType = 'settings' | 'courts' | 'players' | 'matches'
 
 export default function EventDetailPage() {
   const params = useParams()
   const eventId = params.id as string
 
   const [event, setEvent] = useState<Event | null>(null)
-  const [activeTab, setActiveTab] = useState<TabType>('courts')
+  const [currentStep, setCurrentStep] = useState<StepType>('settings')
 
   // Courts state
   const [allCourts, setAllCourts] = useState<Court[]>([])
@@ -64,6 +64,9 @@ export default function EventDetailPage() {
   const [matchesBySet, setMatchesBySet] = useState<Record<number, Match[]>>({})
   const [matchFormat, setMatchFormat] = useState<'Same-Sex' | 'Mixed'>('Same-Sex')
   const [currentSet, setCurrentSet] = useState(1)
+  const [eventDateInput, setEventDateInput] = useState('')
+  const [eventTimeInput, setEventTimeInput] = useState('')
+  const [eventName, setEventName] = useState('')
   
   // UI state
   const [loading, setLoading] = useState(true)
@@ -78,6 +81,21 @@ export default function EventDetailPage() {
     fetchAllPlayers()
     fetchEventPlayers()
     fetchMatches()
+    
+    // Set default date and time to now
+    const now = new Date()
+    const dateStr = now.toISOString().split('T')[0]
+    const timeStr = now.toTimeString().slice(0, 5)
+    setEventDateInput(dateStr)
+    setEventTimeInput(timeStr)
+    
+    // Set default event name
+    const defaultName = `Tennis Event - ${now.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    })}`
+    setEventName(defaultName)
   }, [eventId])
 
   async function fetchEvent() {
@@ -86,10 +104,45 @@ export default function EventDetailPage() {
       if (!response.ok) throw new Error('Failed to fetch event')
       const data = await response.json()
       setEvent(data.event)
+      
+      // Set event date and time from fetched event
+      if (data.event.event_date) {
+        setEventDateInput(data.event.event_date)
+      }
+      if (data.event.start_time) {
+        setEventTimeInput(data.event.start_time)
+      }
+      if (data.event.name) {
+        setEventName(data.event.name)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Settings functions
+  async function saveSettings() {
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: eventName,
+          event_date: eventDateInput,
+          start_time: eventTimeInput,
+        }),
+      })
+      if (!response.ok) throw new Error('Failed to save settings')
+      await fetchEvent()
+      setCurrentStep('courts')
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      alert('Failed to save settings')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -147,7 +200,7 @@ export default function EventDetailPage() {
         body: JSON.stringify({ courts: selectedCourts }),
       })
       if (!response.ok) throw new Error('Failed to save courts')
-      alert('Courts saved successfully!')
+      setCurrentStep('players')
     } catch (error) {
       console.error('Error saving courts:', error)
       alert('Failed to save courts')
@@ -213,7 +266,7 @@ export default function EventDetailPage() {
         body: JSON.stringify({ players: eventPlayers }),
       })
       if (!response.ok) throw new Error('Failed to save players')
-      alert('Players saved successfully!')
+      setCurrentStep('matches')
     } catch (error) {
       console.error('Error saving players:', error)
       alert('Failed to save players')
@@ -248,10 +301,7 @@ export default function EventDetailPage() {
         const data = await response.json()
         throw new Error(data.error || 'Failed to generate matches')
       }
-      const data = await response.json()
-      console.log('Generated matches:', data)
       await fetchMatches()
-      setActiveTab('matches')
     } catch (err) {
       console.error('Error generating matches:', err)
       alert(err instanceof Error ? err.message : 'Failed to generate matches')
@@ -260,7 +310,6 @@ export default function EventDetailPage() {
     }
   }
 
-  const canGenerateMatches = selectedCourts.length > 0 && eventPlayers.length > 0
   const availableCourts = allCourts.filter(c => !isCourtSelected(c.id))
   const filteredPlayers = allPlayers.filter(p => {
     if (!searchTerm) return true
@@ -271,6 +320,10 @@ export default function EventDetailPage() {
     )
   })
   const setNumbers = Object.keys(matchesBySet).map(Number).sort((a, b) => a - b)
+
+  const isSettingsComplete = eventName && matchFormat && currentSet && eventDateInput && eventTimeInput
+  const isCourtsComplete = selectedCourts.length > 0
+  const isPlayersComplete = eventPlayers.length > 0
 
   if (loading) {
     return (
@@ -292,7 +345,7 @@ export default function EventDetailPage() {
           <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
             {error || 'Event not found'}
           </div>
-          <Link href="/events" className="text-primary hover:underline mt-4 inline-block">
+          <Link href="/" className="text-primary hover:underline mt-4 inline-block">
             ← Back to Events
           </Link>
         </div>
@@ -309,194 +362,418 @@ export default function EventDetailPage() {
   })
 
   return (
-    <main className="min-h-screen p-8">
+    <main className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <Link href="/" className="text-primary hover:underline mb-4 inline-block">
-            ← Back to Events
+          <Link href="/" className="text-indigo-600 hover:text-indigo-700 mb-4 inline-flex items-center gap-2 font-medium">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Events
           </Link>
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800">{event.name}</h1>
-              <p className="text-gray-600 mt-1">{formattedDate}</p>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <div className="flex items-center justify-between">
+            {/* Settings */}
+            <div className="flex items-center flex-1">
+              <button
+                onClick={() => setCurrentStep('settings')}
+                className={`flex items-center gap-3 ${currentStep === 'settings' ? '' : 'cursor-pointer hover:opacity-80'}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                  isSettingsComplete
+                    ? 'bg-green-500 text-white'
+                    : currentStep === 'settings'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {isSettingsComplete ? '✓' : '⚙'}
+                </div>
+                <div className="text-left">
+                  <div className={`text-sm font-medium ${currentStep === 'settings' ? 'text-indigo-600' : 'text-gray-900'}`}>
+                    Settings
+                  </div>
+                  <div className="text-xs text-gray-500">Configure format</div>
+                </div>
+              </button>
+              <div className={`flex-1 h-0.5 mx-4 ${isSettingsComplete ? 'bg-green-500' : 'bg-gray-200'}`} />
             </div>
-            <span className={`px-4 py-2 rounded-full text-sm font-medium ${
-              event.status === 'draft' ? 'bg-gray-100 text-gray-700' :
-              event.status === 'active' ? 'bg-green-100 text-green-700' :
-              event.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-              'bg-red-100 text-red-700'
-            }`}>
-              {event.status ? event.status.charAt(0).toUpperCase() + event.status.slice(1) : 'Draft'}
-            </span>
+
+            {/* Step 1: Courts */}
+            <div className="flex items-center flex-1">
+              <button
+                onClick={() => isSettingsComplete && setCurrentStep('courts')}
+                disabled={!isSettingsComplete}
+                className={`flex items-center gap-3 ${!isSettingsComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                  isCourtsComplete
+                    ? 'bg-green-500 text-white'
+                    : currentStep === 'courts'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {isCourtsComplete ? '✓' : '1'}
+                </div>
+                <div className="text-left">
+                  <div className={`text-sm font-medium ${currentStep === 'courts' ? 'text-indigo-600' : 'text-gray-900'}`}>
+                    Choose Courts
+                  </div>
+                  <div className="text-xs text-gray-500">{selectedCourts.length} selected</div>
+                </div>
+              </button>
+              <div className={`flex-1 h-0.5 mx-4 ${isCourtsComplete ? 'bg-green-500' : 'bg-gray-200'}`} />
+            </div>
+
+            {/* Step 2: Players */}
+            <div className="flex items-center flex-1">
+              <button
+                onClick={() => isCourtsComplete && setCurrentStep('players')}
+                disabled={!isCourtsComplete}
+                className={`flex items-center gap-3 ${!isCourtsComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                  isPlayersComplete
+                    ? 'bg-green-500 text-white'
+                    : currentStep === 'players'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {isPlayersComplete ? '✓' : '2'}
+                </div>
+                <div className="text-left">
+                  <div className={`text-sm font-medium ${currentStep === 'players' ? 'text-indigo-600' : 'text-gray-900'}`}>
+                    Choose Players
+                  </div>
+                  <div className="text-xs text-gray-500">{eventPlayers.length} selected</div>
+                </div>
+              </button>
+              <div className={`flex-1 h-0.5 mx-4 ${isPlayersComplete ? 'bg-green-500' : 'bg-gray-200'}`} />
+            </div>
+
+            {/* Step 3: Matches */}
+            <div className="flex items-center">
+              <button
+                onClick={() => isPlayersComplete && setCurrentStep('matches')}
+                disabled={!isPlayersComplete}
+                className={`flex items-center gap-3 ${!isPlayersComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                  currentStep === 'matches'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-200 text-gray-600'
+                }`}>
+                  3
+                </div>
+                <div className="text-left">
+                  <div className={`text-sm font-medium ${currentStep === 'matches' ? 'text-indigo-600' : 'text-gray-900'}`}>
+                    Generate Matches
+                  </div>
+                  <div className="text-xs text-gray-500">View schedule</div>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Match Generation Controls */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Match Format</label>
-                <div className="flex gap-2">
-                  <button onClick={() => setMatchFormat('Same-Sex')} className={`px-4 py-2 border-2 rounded-lg font-medium transition ${
-                    matchFormat === 'Same-Sex' ? 'border-primary bg-primary text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-primary'
-                  }`}>Same-Sex</button>
-                  <button onClick={() => setMatchFormat('Mixed')} className={`px-4 py-2 border-2 rounded-lg font-medium transition ${
-                    matchFormat === 'Mixed' ? 'border-primary bg-primary text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-primary'
-                  }`}>Mixed</button>
+        {/* Content Area */}
+        <div className="bg-white rounded-xl shadow-sm p-8">
+
+          {/* SETTINGS STEP */}
+          {currentStep === 'settings' && (
+            <div className="max-w-2xl mx-auto pb-24">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure Event Settings</h2>
+                <p className="text-gray-600">Set up the match format and current set before selecting courts and players</p>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Event Name</label>
+                  <input
+                    type="text"
+                    value={eventName}
+                    onChange={(e) => setEventName(e.target.value)}
+                    placeholder="e.g., Tennis Event - Jan 15, 2024"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Event Date</label>
+                    <input
+                      type="date"
+                      value={eventDateInput}
+                      onChange={(e) => setEventDateInput(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Start Time</label>
+                    <input
+                      type="time"
+                      value={eventTimeInput}
+                      onChange={(e) => setEventTimeInput(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Match Format</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setMatchFormat('Same-Sex')}
+                        className={`px-4 py-3 border-2 rounded-lg font-medium transition text-sm ${
+                          matchFormat === 'Same-Sex'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-300'
+                        }`}
+                      >
+                        Same-Sex
+                      </button>
+                      <button
+                        onClick={() => setMatchFormat('Mixed')}
+                        className={`px-4 py-3 border-2 rounded-lg font-medium transition text-sm ${
+                          matchFormat === 'Mixed'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-300'
+                        }`}
+                      >
+                        Mixed
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Current Set</label>
+                    <select
+                      value={currentSet}
+                      onChange={(e) => setCurrentSet(parseInt(e.target.value))}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg"
+                    >
+                      {[1, 2, 3, 4, 5, 6].map(n => (
+                        <option key={n} value={n}>Set {n}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Current Set</label>
-                <select value={currentSet} onChange={(e) => setCurrentSet(parseInt(e.target.value))}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
-                  {[1,2,3,4,5,6].map(n => <option key={n} value={n}>Set {n}</option>)}
-                </select>
+
+              {/* Sticky Footer with Continue Button */}
+              <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
+                <div className="max-w-2xl mx-auto px-8 py-4">
+                  <button
+                    onClick={saveSettings}
+                    disabled={saving}
+                    className={`w-full px-6 py-4 rounded-xl transition font-semibold text-lg ${
+                      saving
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    }`}
+                  >
+                    {saving ? 'Saving...' : 'Continue'}
+                  </button>
+                </div>
               </div>
             </div>
-            <button onClick={generateMatches} disabled={!canGenerateMatches || generating}
-              className={`px-6 py-3 rounded-lg font-medium transition ${
-                canGenerateMatches && !generating ? 'bg-success text-white hover:bg-green-600' : 'bg-gray-300 text-gray-600 cursor-not-allowed'
-              }`}>
-              {generating ? 'Generating...' : 'Generate Matches'}
-            </button>
-          </div>
-          {!canGenerateMatches && <p className="text-sm text-gray-500 mt-3">Select courts and add players first</p>}
-        </div>
+          )}
 
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-md">
-          <div className="border-b border-gray-200">
-            <div className="flex">
-              <button onClick={() => setActiveTab('courts')} className={`px-6 py-4 font-medium border-b-2 transition ${
-                activeTab === 'courts' ? 'border-primary text-primary' : 'border-transparent text-gray-600 hover:text-gray-800'
-              }`}>
-                Courts {selectedCourts.length > 0 && <span className="ml-2 px-2 py-0.5 bg-primary text-white text-xs rounded-full">{selectedCourts.length}</span>}
-              </button>
-              <button onClick={() => setActiveTab('players')} className={`px-6 py-4 font-medium border-b-2 transition ${
-                activeTab === 'players' ? 'border-primary text-primary' : 'border-transparent text-gray-600 hover:text-gray-800'
-              }`}>
-                Players {eventPlayers.length > 0 && <span className="ml-2 px-2 py-0.5 bg-primary text-white text-xs rounded-full">{eventPlayers.length}</span>}
-              </button>
-              <button onClick={() => setActiveTab('matches')} className={`px-6 py-4 font-medium border-b-2 transition ${
-                activeTab === 'matches' ? 'border-primary text-primary' : 'border-transparent text-gray-600 hover:text-gray-800'
-              }`}>
-                Matches
-              </button>
-            </div>
-          </div>
+          {/* COURTS STEP */}
+          {currentStep === 'courts' && (
+            <div className="pb-24">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 1: Choose Courts</h2>
+                <p className="text-gray-600">Select the courts that will be used for this event</p>
+              </div>
 
-          <div className="p-6">
-            {/* COURTS TAB */}
-            {activeTab === 'courts' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">Selected Courts ({selectedCourts.length})</h2>
+                    <h3 className="text-lg font-semibold text-gray-900">Selected Courts ({selectedCourts.length})</h3>
                     {selectedCourts.length > 0 && (
-                      <button onClick={() => setSelectedCourts([])} className="text-sm text-red-600 hover:text-red-700">Clear All</button>
+                      <button onClick={() => setSelectedCourts([])} className="text-sm text-red-600 hover:text-red-700 font-medium">
+                        Clear All
+                      </button>
                     )}
                   </div>
                   {selectedCourts.length === 0 ? (
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                      <p className="text-gray-500">Click courts below to add them</p>
+                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center">
+                      <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <p className="text-gray-500">Click courts on the right to add them</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {selectedCourts.map((sc) => (
-                        <div key={sc.court_id} className={`flex items-center justify-between p-3 rounded-lg border-2 ${
-                          sc.surface_type === 'hard' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'
-                        }`}>
+                        <div
+                          key={sc.court_id}
+                          className={`flex items-center justify-between p-4 rounded-xl border-2 ${
+                            sc.surface_type === 'hard' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'
+                          }`}
+                        >
                           <div className="flex items-center gap-3">
-                            <span className="text-sm font-medium text-gray-500 w-6">{sc.selection_order}.</span>
+                            <span className="text-sm font-semibold text-gray-500 w-8">{sc.selection_order}.</span>
                             <span className="font-bold text-lg">{sc.court_name}</span>
-                            <span className="text-xs px-2 py-1 rounded bg-white">{sc.surface_type}</span>
+                            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                              sc.surface_type === 'hard' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                            }`}>
+                              {sc.surface_type}
+                            </span>
                           </div>
-                          <button onClick={() => removeCourt(sc.court_id)} className="text-red-600 hover:text-red-700 font-bold text-xl">×</button>
+                          <button
+                            onClick={() => removeCourt(sc.court_id)}
+                            className="text-red-600 hover:text-red-700 font-bold text-2xl w-8 h-8 flex items-center justify-center"
+                          >
+                            ×
+                          </button>
                         </div>
                       ))}
                     </div>
                   )}
-                  {selectedCourts.length > 0 && (
-                    <button onClick={saveCourts} disabled={saving} className="mt-4 w-full bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
-                      {saving ? 'Saving...' : 'Save Courts'}
-                    </button>
-                  )}
                 </div>
+
                 <div>
-                  <h2 className="text-xl font-bold mb-4">Available Courts</h2>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Available Courts</h3>
                   {availableCourts.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">All courts selected</p>
+                    <p className="text-gray-500 text-center py-12">All courts have been selected</p>
                   ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       {availableCourts.map((court) => (
-                        <button key={court.id} onClick={() => addCourt(court)} className={`p-4 rounded-lg font-bold text-white text-lg transition hover:scale-105 ${
-                          court.surface_type === 'hard' ? 'bg-primary hover:bg-blue-700' : 'bg-success hover:bg-green-600'
-                        }`}>{court.name}</button>
+                        <button
+                          key={court.id}
+                          onClick={() => addCourt(court)}
+                          className={`p-6 rounded-xl font-bold text-white text-lg transition hover:scale-105 shadow-md ${
+                            court.surface_type === 'hard' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-green-600 hover:bg-green-700'
+                          }`}
+                        >
+                          {court.name}
+                        </button>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
-            )}
 
-            {/* PLAYERS TAB */}
-            {activeTab === 'players' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Sticky Footer with Back and Continue Buttons */}
+              <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
+                <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between">
+                  <button
+                    onClick={() => setCurrentStep('settings')}
+                    className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:border-gray-400 transition font-medium"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    onClick={saveCourts}
+                    disabled={selectedCourts.length === 0 || saving}
+                    className={`px-8 py-3 rounded-xl font-semibold transition ${
+                      selectedCourts.length > 0 && !saving
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {saving ? 'Saving...' : 'Continue'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PLAYERS STEP */}
+          {currentStep === 'players' && (
+            <div className="pb-24">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 2: Choose Players</h2>
+                <p className="text-gray-600">Select the players who will participate in this event</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
-                  <h2 className="text-xl font-bold mb-4">Selected Players ({eventPlayers.length})</h2>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Selected Players ({eventPlayers.length})</h3>
                   {eventPlayers.length === 0 ? (
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center">
+                      <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
                       <p className="text-gray-500">Search and click players to add them</p>
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-[600px] overflow-y-auto">
                       {eventPlayers.map((ep) => (
-                        <div key={ep.player_id} className="flex items-center justify-between p-3 rounded-lg border-2 border-gray-200 hover:border-primary transition">
+                        <div
+                          key={ep.player_id}
+                          className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-300 transition"
+                        >
                           <div className="flex items-center gap-3">
-                            <span className="text-sm font-medium text-gray-500 w-6">{ep.arrival_order}.</span>
+                            <span className="text-sm font-semibold text-gray-500 w-8">{ep.arrival_order}.</span>
                             <div>
-                              <span className="font-semibold">{ep.player_name}</span>
+                              <div className="font-semibold text-gray-900">{ep.player_name}</div>
                               <div className="flex gap-2 text-sm text-gray-600">
-                                <span>Grade {translateGrade(ep.grade)}</span>
+                                <span>{translateGrade(ep.grade)}{ep.plus_minus}</span>
                                 <span>•</span>
                                 <span>{ep.gender === 'M' ? 'Male' : 'Female'}</span>
-                                {ep.nhc && <><span>•</span><span className="text-orange-600">NHC</span></>}
-                                {ep.plus_minus && <><span>•</span><span>{ep.plus_minus}</span></>}
+                                {ep.nhc && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-orange-600 font-medium">NHC</span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
-                          <button onClick={() => removePlayer(ep.player_id)} className="text-red-600 hover:text-red-700 font-bold text-xl">×</button>
+                          <button
+                            onClick={() => removePlayer(ep.player_id)}
+                            className="text-red-600 hover:text-red-700 font-bold text-2xl w-8 h-8 flex items-center justify-center"
+                          >
+                            ×
+                          </button>
                         </div>
                       ))}
                     </div>
                   )}
-                  {eventPlayers.length > 0 && (
-                    <button onClick={savePlayers} disabled={saving} className="mt-4 w-full bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
-                      {saving ? 'Saving...' : 'Save Players'}
-                    </button>
-                  )}
                 </div>
+
                 <div>
-                  <h2 className="text-xl font-bold mb-4">Member List</h2>
-                  <input type="text" placeholder="Search by name or grade..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-primary focus:border-transparent" />
-                  <div className="space-y-1 max-h-[600px] overflow-y-auto">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Member List</h3>
+                  <input
+                    type="text"
+                    placeholder="Search by name or grade..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
                     {filteredPlayers.map((player) => {
                       const added = isPlayerAdded(player.id)
                       return (
-                        <button key={player.id} onClick={() => !added && addPlayer(player)} disabled={added}
-                          className={`w-full text-left p-3 rounded-lg transition ${
-                            added ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'hover:bg-blue-50 border border-transparent hover:border-primary'
-                          }`}>
+                        <button
+                          key={player.id}
+                          onClick={() => !added && addPlayer(player)}
+                          disabled={added}
+                          className={`w-full text-left p-4 rounded-xl transition ${
+                            added
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'hover:bg-indigo-50 border-2 border-transparent hover:border-indigo-300'
+                          }`}
+                        >
                           <div className="font-semibold">{player.name}</div>
                           <div className="flex gap-2 text-sm text-gray-600">
-                            <span>Grade {translateGrade(player.grade)}</span>
+                            <span>{translateGrade(player.grade)}{player.plus_minus}</span>
                             <span>•</span>
                             <span>{player.gender === 'M' ? 'Male' : 'Female'}</span>
-                            {player.nhc && <><span>•</span><span className="text-orange-600">NHC</span></>}
-                            {player.plus_minus && <><span>•</span><span>{player.plus_minus}</span></>}
+                            {player.nhc && (
+                              <>
+                                <span>•</span>
+                                <span className="text-orange-600 font-medium">NHC</span>
+                              </>
+                            )}
                           </div>
                         </button>
                       )
@@ -504,70 +781,144 @@ export default function EventDetailPage() {
                   </div>
                 </div>
               </div>
-            )}
 
-            {/* MATCHES TAB */}
-            {activeTab === 'matches' && (
-              <div>
-                {setNumbers.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-600">No matches generated yet. Click "Generate Matches" above to create matches for the selected set.</p>
+              {/* Sticky Footer with Back and Continue Buttons */}
+              <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
+                <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between">
+                  <button
+                    onClick={() => setCurrentStep('courts')}
+                    className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:border-gray-400 transition font-medium"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    onClick={savePlayers}
+                    disabled={eventPlayers.length === 0 || saving}
+                    className={`px-8 py-3 rounded-xl font-semibold transition ${
+                      eventPlayers.length > 0 && !saving
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {saving ? 'Saving...' : 'Continue'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MATCHES STEP */}
+          {currentStep === 'matches' && (
+            <div className="pb-24">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 3: Generate Matches</h2>
+                <p className="text-gray-600">Create the match schedule for Set {currentSet} ({matchFormat})</p>
+              </div>
+
+              {setNumbers.length === 0 || !matchesBySet[currentSet] ? (
+                <div className="text-center py-12">
+                  <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <p className="text-gray-600 mb-6">No matches generated yet for Set {currentSet}</p>
+                  <button
+                    onClick={generateMatches}
+                    disabled={generating}
+                    className={`px-8 py-4 rounded-xl font-semibold text-lg transition ${
+                      generating
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                  >
+                    {generating ? 'Generating...' : '🎾 Generate Matches'}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-semibold text-gray-900">Set {currentSet} Matches</h3>
+                    <button
+                      onClick={generateMatches}
+                      disabled={generating}
+                      className={`px-6 py-3 rounded-xl font-semibold transition ${
+                        generating
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                      }`}
+                    >
+                      {generating ? 'Regenerating...' : 'Regenerate Matches'}
+                    </button>
                   </div>
-                ) : (
-                  <div className="space-y-8">
-                    {setNumbers.map(setNum => (
-                      <div key={setNum}>
-                        <h2 className="text-2xl font-bold text-gray-800 mb-4">Set {setNum}</h2>
-                        <div className="space-y-4">
-                          {matchesBySet[setNum].map((match) => (
-                            <div key={match.id} className="border-2 border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
-                              <div className="flex gap-4">
-                                <div className="flex-shrink-0">
-                                  <div className={`px-4 py-2 rounded-lg font-bold text-white text-center min-w-[80px] ${
-                                    match.surface_type === 'hard' ? 'bg-primary' : 'bg-success'
-                                  }`}>Court<br />{match.court}</div>
-                                </div>
-                                <div className="flex-1 grid grid-cols-3 gap-4 items-center">
-                                  <div className="space-y-1">
-                                    {match.team1.map((player) => (
-                                      <div key={player.id} className="bg-blue-50 border border-blue-200 rounded px-3 py-1.5 flex items-center gap-1.5">
-                                        <span className="font-semibold">{player.name}</span>
-                                        <span className="text-gray-600 font-bold">•</span>
-                                        <span className="text-sm text-gray-600">{player.gender}</span>
-                                        <span className="text-gray-600 font-bold">•</span>
-                                        <span className="text-sm text-gray-600">
-                                          {translateGrade(player.grade)}{player.plus_minus || ''}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <div className="text-center text-xl font-bold text-gray-400">VS</div>
-                                  <div className="space-y-1">
-                                    {match.team2.map((player) => (
-                                      <div key={player.id} className="bg-red-50 border border-red-200 rounded px-3 py-1.5 flex items-center gap-1.5">
-                                        <span className="font-semibold">{player.name}</span>
-                                        <span className="text-gray-600 font-bold">•</span>
-                                        <span className="text-sm text-gray-600">{player.gender}</span>
-                                        <span className="text-gray-600 font-bold">•</span>
-                                        <span className="text-sm text-gray-600">
-                                          {translateGrade(player.grade)}{player.plus_minus || ''}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                              {match.notes && <div className="mt-2 text-sm text-gray-500 italic ml-[96px]">{match.notes}</div>}
+
+                  <div className="space-y-4">
+                    {matchesBySet[currentSet].map((match) => (
+                      <div key={match.id} className="border-2 border-gray-200 rounded-xl p-6 hover:border-gray-300 transition-colors">
+                        <div className="flex gap-6">
+                          <div className="flex-shrink-0">
+                            <div
+                              className={`px-6 py-3 rounded-xl font-bold text-white text-center min-w-[100px] ${
+                                match.surface_type === 'hard' ? 'bg-indigo-600' : 'bg-green-600'
+                              }`}
+                            >
+                              <div className="text-sm opacity-90">Court</div>
+                              <div className="text-xl">{match.court}</div>
                             </div>
-                          ))}
+                          </div>
+                          <div className="flex-1 grid grid-cols-3 gap-6 items-center">
+                            <div className="space-y-2">
+                              {match.team1.map((player) => (
+                                <div
+                                  key={player.id}
+                                  className="bg-blue-50 border-2 border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2"
+                                >
+                                  <span className="font-semibold text-gray-900">{player.name}</span>
+                                  <span className="text-gray-400">•</span>
+                                  <span className="text-sm text-gray-600">{player.gender}</span>
+                                  <span className="text-gray-400">•</span>
+                                  <span className="text-sm text-gray-600">
+                                    {translateGrade(player.grade)}{player.plus_minus || ''}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="text-center text-2xl font-bold text-gray-400">VS</div>
+                            <div className="space-y-2">
+                              {match.team2.map((player) => (
+                                <div
+                                  key={player.id}
+                                  className="bg-red-50 border-2 border-red-200 rounded-lg px-4 py-2 flex items-center gap-2"
+                                >
+                                  <span className="font-semibold text-gray-900">{player.name}</span>
+                                  <span className="text-gray-400">•</span>
+                                  <span className="text-sm text-gray-600">{player.gender}</span>
+                                  <span className="text-gray-400">•</span>
+                                  <span className="text-sm text-gray-600">
+                                    {translateGrade(player.grade)}{player.plus_minus || ''}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
+                        {match.notes && (
+                          <div className="mt-4 text-sm text-gray-500 italic ml-[124px]">{match.notes}</div>
+                        )}
                       </div>
                     ))}
                   </div>
-                )}
+                </div>
+              )}
+
+              <div className="mt-8">
+                <button
+                  onClick={() => setCurrentStep('players')}
+                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:border-gray-400 transition font-medium"
+                >
+                  ← Back
+                </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </main>

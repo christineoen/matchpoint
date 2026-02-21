@@ -284,16 +284,13 @@ function HomeContent() {
         {activeTab === 'events' && (
           <div>
             <div className="flex justify-between items-center mb-6">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-800">Tennis Events</h1>
-                <p className="text-gray-600 mt-1">Manage your tennis events</p>
-              </div>
+              <h1 className="text-3xl font-bold text-gray-800">Events</h1>
               <button
                 onClick={createNewEvent}
                 disabled={creatingEvent}
                 className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-semibold"
               >
-                {creatingEvent ? 'Creating...' : '+ Create New Event'}
+                {creatingEvent ? 'Creating...' : 'Create new event'}
               </button>
             </div>
 
@@ -316,7 +313,6 @@ function HomeContent() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sets</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
@@ -333,7 +329,9 @@ function HomeContent() {
                       return (
                         <tr key={event.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4">
-                            <div className="text-sm font-medium text-gray-900">{event.name}</div>
+                            <Link href={`/events/${event.id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 transition">
+                              {event.name}
+                            </Link>
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-600">{formattedDate}</div>
@@ -343,16 +341,6 @@ function HomeContent() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-600">{event.total_sets}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              event.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-                              event.status === 'active' ? 'bg-green-100 text-green-800' :
-                              event.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {event.status}
-                            </span>
                           </td>
                           <td className="px-6 py-4 text-right">
                             <Link href={`/events/${event.id}`} className="text-primary hover:text-blue-900 font-semibold">
@@ -375,13 +363,10 @@ function HomeContent() {
         {activeTab === 'players' && (
           <div>
             <div className="flex justify-between items-center mb-6">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-800">Players</h1>
-                <p className="text-gray-600 mt-1">Manage your club members</p>
-              </div>
+              <h1 className="text-3xl font-bold text-gray-800">Players</h1>
               <div className="flex gap-3">
                 <label className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold cursor-pointer">
-                  📤 Upload CSV
+                  Upload CSV
                   <input
                     type="file"
                     accept=".csv"
@@ -393,7 +378,7 @@ function HomeContent() {
                   onClick={() => setShowPlayerForm(!showPlayerForm)}
                   className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold"
                 >
-                  {showPlayerForm ? 'Cancel' : '+ Add Player'}
+                  {showPlayerForm ? 'Cancel' : 'Add player'}
                 </button>
               </div>
             </div>
@@ -413,7 +398,7 @@ function HomeContent() {
 
             {showPlayerForm && (
               <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-                <h2 className="text-xl font-bold mb-4">Add New Player</h2>
+                <h2 className="text-xl font-bold mb-4">Add new player</h2>
                 <form onSubmit={handlePlayerSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
@@ -457,7 +442,7 @@ function HomeContent() {
                     <label htmlFor="nhc" className="ml-2 text-sm text-gray-700">NHC (New/Hasn't Competed)</label>
                   </div>
                   <div className="md:col-span-2">
-                    <button type="submit" className="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">Add Player</button>
+                    <button type="submit" className="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">Add player</button>
                   </div>
                 </form>
               </div>
@@ -465,7 +450,7 @@ function HomeContent() {
 
             {players.length === 0 ? (
               <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                <p className="text-gray-500 text-lg">No players yet. Click "Add Player" to begin!</p>
+                <p className="text-gray-500 text-lg">No players yet. Click "Add player" to begin!</p>
               </div>
             ) : (
               <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -480,15 +465,27 @@ function HomeContent() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {players.map((player) => (
-                      <tr key={player.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4"><div className="text-sm font-medium text-gray-900">{player.name}</div></td>
-                        <td className="px-6 py-4"><div className="text-sm text-gray-600">{player.gender === 'M' ? 'Male' : 'Female'}</div></td>
-                        <td className="px-6 py-4"><div className="text-sm text-gray-600">{translateGrade(player.grade)}{player.plus_minus}{player.nhc && <span className="ml-2 text-orange-600">NHC</span>}</div></td>
-                        <td className="px-6 py-4"><div className="text-sm text-gray-600">{player.email && <div>{player.email}</div>}{player.phone && <div>{player.phone}</div>}{!player.email && !player.phone && '-'}</div></td>
-                        <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${player.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{player.is_active ? 'Active' : 'Inactive'}</span></td>
-                      </tr>
-                    ))}
+                    {players.map((player) => {
+                      const initials = player.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+                      return (
+                        <tr key={player.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-medium text-xs flex-shrink-0">
+                                {initials}
+                              </div>
+                              <Link href={`/players/${player.id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 transition">
+                                {player.name}
+                              </Link>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4"><div className="text-sm text-gray-600">{player.gender === 'M' ? 'Male' : 'Female'}</div></td>
+                          <td className="px-6 py-4"><div className="text-sm text-gray-600">{translateGrade(player.grade)}{player.plus_minus}{player.nhc && <span className="ml-2 text-orange-600">NHC</span>}</div></td>
+                          <td className="px-6 py-4"><div className="text-sm text-gray-600">{player.email && <div>{player.email}</div>}{player.phone && <div>{player.phone}</div>}{!player.email && !player.phone && '-'}</div></td>
+                          <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${player.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{player.is_active ? 'Active' : 'Inactive'}</span></td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -500,13 +497,10 @@ function HomeContent() {
         {activeTab === 'courts' && (
           <div>
             <div className="flex justify-between items-center mb-6">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-800">Courts</h1>
-                <p className="text-gray-600 mt-1">Manage available tennis courts</p>
-              </div>
+              <h1 className="text-3xl font-bold text-gray-800">Courts</h1>
               <div className="flex gap-3">
                 <label className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold cursor-pointer">
-                  📤 Upload CSV
+                  Upload CSV
                   <input
                     type="file"
                     accept=".csv"
@@ -514,7 +508,7 @@ function HomeContent() {
                     className="hidden"
                   />
                 </label>
-                <button onClick={() => setShowCourtForm(!showCourtForm)} className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">{showCourtForm ? 'Cancel' : '+ Add Court'}</button>
+                <button onClick={() => setShowCourtForm(!showCourtForm)} className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">{showCourtForm ? 'Cancel' : 'Add court'}</button>
               </div>
             </div>
 
@@ -533,7 +527,7 @@ function HomeContent() {
 
             {showCourtForm && (
               <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-                <h2 className="text-xl font-bold mb-4">Add New Court</h2>
+                <h2 className="text-xl font-bold mb-4">Add new court</h2>
                 <form onSubmit={handleCourtSubmit} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Court Name *</label>
@@ -552,23 +546,51 @@ function HomeContent() {
                       </label>
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">Add Court</button>
+                  <button type="submit" className="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">Add court</button>
                 </form>
               </div>
             )}
 
             {courts.length === 0 ? (
               <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                <p className="text-gray-500 text-lg">No courts yet. Click "Add Court" to begin!</p>
+                <p className="text-gray-500 text-lg">No courts yet. Click "Add court" to begin!</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {courts.map((court) => (
-                  <div key={court.id} className={`rounded-lg p-6 text-center shadow-md transition hover:shadow-lg ${court.surface_type === 'hard' ? 'bg-blue-500 text-white' : 'bg-green-500 text-white'}`}>
-                    <h3 className="text-xl font-bold mb-2">{court.name}</h3>
-                    <p className="text-sm opacity-90">{court.surface_type === 'hard' ? 'Hard Court' : 'Grass Court'}</p>
-                  </div>
-                ))}
+              <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Court Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Surface Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {courts.map((court) => (
+                      <tr key={court.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-gray-900">{court.name}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              court.surface_type === 'hard' 
+                                ? 'bg-blue-100 text-blue-800' 
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {court.surface_type === 'hard' ? 'Hard Court' : 'Grass Court'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            Available
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

@@ -3,14 +3,20 @@
 @tailwind utilities;
 
 :root {
-  --primary: #007acc;
-  --secondary: #6c757d;
-  --danger: #dc3545;
-  --success: #28a745;
-  --warning: #ffc107;
+  --primary: #6366f1;
+  --primary-dark: #4f46e5;
+  --primary-light: #818cf8;
+  --secondary: #64748b;
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --border: #e2e8f0;
 }
 
 body {
-  font-family: Arial, sans-serif;
-  background: #f4f4f4;
+  background: var(--background);
+  color: #1e293b;
 }
+
