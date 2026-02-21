@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import type { Event, Player, Court } from '@/database-types'
 import { translateGrade } from '@/lib/utils/grade-utils'
@@ -10,7 +10,15 @@ type TabType = 'events' | 'players' | 'courts'
 
 export default function Home() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<TabType>('events')
+
+  useEffect(() => {
+    const tab = searchParams.get('tab') as TabType
+    if (tab && ['events', 'players', 'courts'].includes(tab)) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
   
   // Events state
   const [events, setEvents] = useState<Event[]>([])
@@ -271,43 +279,6 @@ export default function Home() {
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-md mb-6">
-          <div className="border-b border-gray-200">
-            <div className="flex">
-              <button
-                onClick={() => setActiveTab('events')}
-                className={`px-8 py-4 font-semibold border-b-2 transition ${
-                  activeTab === 'events'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                Events
-              </button>
-              <button
-                onClick={() => setActiveTab('players')}
-                className={`px-8 py-4 font-semibold border-b-2 transition ${
-                  activeTab === 'players'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                Players
-              </button>
-              <button
-                onClick={() => setActiveTab('courts')}
-                className={`px-8 py-4 font-semibold border-b-2 transition ${
-                  activeTab === 'courts'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                Courts
-              </button>
-            </div>
-          </div>
-        </div>
 
         {/* EVENTS TAB */}
         {activeTab === 'events' && (
