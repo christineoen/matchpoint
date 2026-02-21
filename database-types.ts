@@ -627,3 +627,16 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
+// Convenience type exports for common table types
+export type Event = Database['public']['Tables']['events']['Row']
+export type Player = Database['public']['Tables']['players']['Row']
+export type Court = Database['public']['Tables']['courts']['Row']
+export type ClubMember = Database['public']['Tables']['club_members']['Row']
+export type Club = Database['public']['Tables']['clubs']['Row']
+export type EventPlayer = Database['public']['Tables']['event_players']['Row']
+export type EventCourt = Database['public']['Tables']['event_courts']['Row']
+export type Match = Database['public']['Tables']['matches']['Row']
+export type MatchPlayer = Database['public']['Tables']['match_players']['Row']
+export type MatchHistory = Database['public']['Tables']['match_history']['Row']
+export type Profile = Database['public']['Tables']['profiles']['Row']
