@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       end_time: end_time || null,
       location: location || null,
       total_sets: total_sets || 6,
-      status: 'draft' as const,
+      status: 'draft' as const, // Temporarily back to draft until migration runs
       club_id: clubId,
       organizer_id: user.id,
     }
