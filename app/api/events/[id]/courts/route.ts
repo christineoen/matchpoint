@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import type { Database } from '@/database-types'
+import { createServerSupabaseClient } from '@/lib/supabase/server-auth'
 import type { EventCourtWithCourt } from '@/lib/supabase/query-types'
-
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  return createClient<Database>(supabaseUrl, supabaseKey)
-}
 
 // GET /api/events/[id]/courts - Get courts for event
 export async function GET(
@@ -16,14 +9,13 @@ export async function GET(
 ) {
   try {
     const { id: eventId } = await params
-    const supabase = getSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     
     const { data, error } = await supabase
       .from('event_courts')
       .select(`
         id,
         selection_order,
-        is_available,
         court:courts (
           id,
           name,
@@ -63,7 +55,7 @@ export async function POST(
 ) {
   try {
     const { id: eventId } = await params
-    const supabase = getSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     const body = await request.json()
     const { courts } = body
 
@@ -78,7 +70,6 @@ export async function POST(
       event_id: eventId,
       court_id: court.court_id,
       selection_order: court.selection_order,
-      is_available: true,
     }))
 
     const { error } = await (supabase as any)

@@ -123,7 +123,7 @@ export default function EventDetailPage() {
     const newSelection: SelectedCourt = {
       court_id: court.id,
       court_name: court.name,
-      surface_type: court.surface_type,
+      surface_type: court.surface_type as 'grass' | 'hard',
       selection_order: selectedCourts.length + 1,
     }
     setSelectedCourts([...selectedCourts, newSelection])
@@ -187,8 +187,8 @@ export default function EventDetailPage() {
       player_id: player.id,
       player_name: player.name,
       grade: player.grade,
-      gender: player.gender,
-      nhc: player.nhc,
+      gender: player.gender as 'M' | 'F',
+      nhc: player.nhc || false,
       plus_minus: player.plus_minus,
       arrival_order: eventPlayers.length + 1,
     }
@@ -313,7 +313,7 @@ export default function EventDetailPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <Link href="/events" className="text-primary hover:underline mb-4 inline-block">
+          <Link href="/" className="text-primary hover:underline mb-4 inline-block">
             ← Back to Events
           </Link>
           <div className="flex justify-between items-start">
@@ -327,7 +327,7 @@ export default function EventDetailPage() {
               event.status === 'completed' ? 'bg-blue-100 text-blue-700' :
               'bg-red-100 text-red-700'
             }`}>
-              {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+              {event.status ? event.status.charAt(0).toUpperCase() + event.status.slice(1) : 'Draft'}
             </span>
           </div>
         </div>

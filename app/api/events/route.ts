@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server-auth'
 import type { Database } from '@/database-types'
 
 // Create a server-side Supabase client for API routes
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  
-  return createClient<Database>(supabaseUrl, supabaseKey)
+async function getSupabaseClient() {
+  return await createServerSupabaseClient()
 }
 
 // GET /api/events - List all events
 export async function GET() {
   try {
-    const supabase = getSupabaseClient()
+    const supabase = await getSupabaseClient()
     
     const { data: events, error } = await supabase
       .from('events')
@@ -38,10 +35,44 @@ export async function GET() {
 // POST /api/events - Create new event
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const supabase = await getSupabaseClient()
     const body = await request.json()
     
     console.log('Creating event with data:', body)
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      console.error('Auth error:', authError)
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      )
+    }
+
+    console.log('Authenticated user:', user.id)
+
+    // Get user's club from club_members
+    const { data: membership, error: memberError } = await supabase
+      .from('club_members')
+      .select('club_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single()
+    
+    console.log('Membership data:', membership, 'Error:', memberError)
+    
+    const clubId = membership?.club_id
+
+    console.log('Final club_id:', clubId)
+
+    if (!clubId) {
+      return NextResponse.json(
+        { error: 'No club found. Please create a club first.' },
+        { status: 400 }
+      )
+    }
     
     const { name, event_date, start_time, end_time, location, total_sets } = body
 
@@ -53,7 +84,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create event
+    // Create event with club_id
     const insertData = {
       name,
       event_date,
@@ -62,11 +93,13 @@ export async function POST(request: NextRequest) {
       location: location || null,
       total_sets: total_sets || 6,
       status: 'draft' as const,
+      club_id: clubId,
+      organizer_id: user.id,
     }
     
     console.log('Inserting into Supabase:', insertData)
     
-    const { data: event, error } = await (supabase as any)
+    const { data: event, error } = await supabase
       .from('events')
       .insert(insertData as any)
       .select()

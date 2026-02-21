@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server-auth'
 import type { Database } from '@/database-types'
-
-// Create a server-side Supabase client for API routes
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  
-  return createClient<Database>(supabaseUrl, supabaseKey)
-}
 
 // GET /api/events/[id] - Get single event
 export async function GET(
@@ -17,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { id: eventId } = await params
-    const supabase = getSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     
     const { data: event, error } = await supabase
       .from('events')
@@ -48,7 +40,7 @@ export async function PATCH(
 ) {
   try {
     const { id: eventId } = await params
-    const supabase = getSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     const body = await request.json()
 
     const { data: event, error } = await (supabase as any)
@@ -77,7 +69,7 @@ export async function DELETE(
 ) {
   try {
     const { id: eventId } = await params
-    const supabase = getSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     
     const { error } = await supabase.from('events').delete().eq('id', eventId)
 
