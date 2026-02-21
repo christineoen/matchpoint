@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server-auth'
 import type { Database } from '@/database-types'
 import { generateMatches } from '@/lib/match-generation'
 import type { EventPlayer, MatchFormat } from '@/lib/types'
-
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  return createClient<Database>(supabaseUrl, supabaseKey)
-}
 
 export async function POST(
   request: NextRequest,
@@ -16,49 +10,54 @@ export async function POST(
 ) {
   try {
     const { id: eventId } = await params
-    const supabase = getSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     const body = await request.json()
     const { set_number, format } = body
 
     // Get event courts
     const { data: eventCourts, error: courtsError } = await supabase
       .from('event_courts')
-      .select('court:courts(id, name, surface_type)')
+      .select('*, courts(*)')
       .eq('event_id', eventId)
-      .order('selection_order', { ascending: true }) as any
+      .order('selection_order', { ascending: true })
 
-    if (courtsError) throw courtsError
+    if (courtsError) {
+      console.error('Error fetching courts:', courtsError)
+      throw courtsError
+    }
 
-    const courts = eventCourts.map((ec: any) => ({
-      name: ec.court.name,
-      surfaceType: ec.court.surface_type,
+    console.log('Raw event courts data:', eventCourts)
+
+    const courts = (eventCourts || []).map((ec: any) => ({
+      name: ec.courts.name,
+      surfaceType: ec.courts.surface_type,
     }))
 
     // Get event players
     const { data: eventPlayersData, error: playersError } = await supabase
       .from('event_players')
-      .select(`
-        arrival_order,
-        is_resting,
-        unavailable_sets,
-        player:players(id, name, grade, gender, nhc, plus_minus)
-      `)
+      .select('*, players(*)')
       .eq('event_id', eventId)
-      .order('arrival_order', { ascending: true }) as any
+      .order('arrival_order', { ascending: true })
 
-    if (playersError) throw playersError
+    if (playersError) {
+      console.error('Error fetching players:', playersError)
+      throw playersError
+    }
+
+    console.log('Raw event players data:', eventPlayersData)
 
     // Transform to EventPlayer format
-    const players: EventPlayer[] = eventPlayersData.map((ep: any, index: number) => ({
-      id: ep.player.id,
-      name: ep.player.name,
-      grade: ep.player.grade,
-      gender: ep.player.gender,
-      nhc: ep.player.nhc,
-      plusMinus: ep.player.plus_minus || '',
+    const players: EventPlayer[] = (eventPlayersData || []).map((ep: any, index: number) => ({
+      id: ep.players.id,
+      name: ep.players.name,
+      grade: ep.players.grade,
+      gender: ep.players.gender,
+      nhc: ep.players.nhc,
+      plusMinus: ep.players.plus_minus || '',
       arrivalOrder: ep.arrival_order || index + 1,
-      isResting: ep.is_resting,
-      unavailableSets: ep.unavailable_sets as any || {
+      isResting: false, // Default to not resting
+      unavailableSets: {
         set1: false,
         set2: false,
         set3: false,
@@ -110,8 +109,8 @@ export async function POST(
     
     // Create a map of court names to court IDs for easier lookup
     const courtMap = new Map<string, string>()
-    for (const ec of eventCourts as any[]) {
-      courtMap.set(ec.court.name, ec.court.id)
+    for (const ec of (eventCourts || [])) {
+      courtMap.set(ec.courts.name, ec.courts.id)
     }
     
     console.log('Court map:', Array.from(courtMap.entries()))
@@ -147,6 +146,8 @@ export async function POST(
         continue
       }
 
+      console.log('Match saved successfully:', matchData)
+
       // Insert match players
       const matchPlayers = [
         ...match.team1.map((p, idx) => ({
@@ -163,10 +164,19 @@ export async function POST(
         })),
       ]
 
-      await supabase.from('match_players').insert(matchPlayers as any)
+      const { error: playersError } = await supabase.from('match_players').insert(matchPlayers as any)
+      
+      if (playersError) {
+        console.error('Error saving match players:', playersError)
+        continue
+      }
+
+      console.log('Match players saved successfully for match:', matchData.id)
 
       savedMatches.push(matchData)
     }
+
+    console.log('Total matches saved:', savedMatches.length)
 
     return NextResponse.json({
       matches: savedMatches,
