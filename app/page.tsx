@@ -38,6 +38,17 @@ function HomeContent() {
   const [eventSearchTerm, setEventSearchTerm] = useState('')
   const [eventSearchExpanded, setEventSearchExpanded] = useState(false)
   const eventSearchRef = useRef<HTMLDivElement>(null)
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
+  const [showEventDrawer, setShowEventDrawer] = useState(false)
+  const [isEventDrawerClosing, setIsEventDrawerClosing] = useState(false)
+  const [isEventDrawerAnimating, setIsEventDrawerAnimating] = useState(false)
+  const [eventDrawerTab, setEventDrawerTab] = useState<'matches' | 'courts' | 'players'>('matches')
+  const [collapsedSets, setCollapsedSets] = useState<Set<string>>(new Set())
+  const [eventDrawerData, setEventDrawerData] = useState<{
+    courts: any[]
+    players: any[]
+    matches: Record<number, any[]>
+  } | null>(null)
   
   // Players state
   const [players, setPlayers] = useState<Player[]>([])
@@ -45,6 +56,21 @@ function HomeContent() {
   const [showPlayerDropdown, setShowPlayerDropdown] = useState(false)
   const [showPlayerCSVModal, setShowPlayerCSVModal] = useState(false)
   const [playerCSVFile, setPlayerCSVFile] = useState<File | null>(null)
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
+  const [showPlayerDrawer, setShowPlayerDrawer] = useState(false)
+  const [isPlayerDrawerClosing, setIsPlayerDrawerClosing] = useState(false)
+  const [isPlayerDrawerAnimating, setIsPlayerDrawerAnimating] = useState(false)
+  const [playerEditData, setPlayerEditData] = useState<{
+    name: string
+    email: string
+    phone: string
+    gender: 'M' | 'F'
+    grade: number
+    nhc: boolean
+    plus_minus: '' | '+' | '-'
+    avatarSeed: string
+    is_active: boolean
+  } | null>(null)
   const playerDropdownRef = useRef<HTMLDivElement>(null)
   const [playerSortField, setPlayerSortField] = useState<'name' | 'gender' | 'grade'>('name')
   const [playerSortDirection, setPlayerSortDirection] = useState<SortDirection>('asc')
@@ -60,6 +86,13 @@ function HomeContent() {
     nhc: false,
     plus_minus: '' as '' | '+' | '-',
   })
+  
+  // Store custom player data (avatar seeds)
+  const [playerCustomData, setPlayerCustomData] = useState<{
+    [playerId: string]: {
+      avatarSeed?: string
+    }
+  }>({})
   
   // Courts state
   const [courts, setCourts] = useState<Court[]>([])
@@ -166,6 +199,29 @@ function HomeContent() {
       setCourts(data.courts || [])
     } catch (error) {
       console.error('Error fetching courts:', error)
+    }
+  }
+
+  async function fetchEventDetails(eventId: string) {
+    try {
+      const [courtsRes, playersRes, matchesRes] = await Promise.all([
+        fetch(`/api/events/${eventId}/courts`),
+        fetch(`/api/events/${eventId}/players`),
+        fetch(`/api/events/${eventId}/matches`)
+      ])
+
+      const courtsData = await courtsRes.json()
+      const playersData = await playersRes.json()
+      const matchesData = await matchesRes.json()
+
+      setEventDrawerData({
+        courts: courtsData.courts || [],
+        players: playersData.players || [],
+        matches: matchesData.matchesBySet || {}
+      })
+    } catch (error) {
+      console.error('Error fetching event details:', error)
+      setEventDrawerData({ courts: [], players: [], matches: {} })
     }
   }
 
@@ -558,6 +614,61 @@ function HomeContent() {
     }, 300) // Match the animation duration
   }
 
+  // Handle player drawer close with animation
+  const handleClosePlayerDrawer = () => {
+    setIsPlayerDrawerClosing(true)
+    setTimeout(() => {
+      setShowPlayerDrawer(false)
+      setIsPlayerDrawerClosing(false)
+      setIsPlayerDrawerAnimating(false)
+    }, 300)
+  }
+
+  // Handle event drawer close with animation
+  const handleCloseEventDrawer = () => {
+    setIsEventDrawerClosing(true)
+    setTimeout(() => {
+      setShowEventDrawer(false)
+      setIsEventDrawerClosing(false)
+      setIsEventDrawerAnimating(false)
+    }, 300)
+  }
+
+  // Generate fake email for players
+  const getPlayerEmail = (playerId: string, playerName: string) => {
+    const firstName = playerName.split(' ')[0].toLowerCase()
+    const lastName = playerName.split(' ')[1]?.toLowerCase() || 'player'
+    const seed = playerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    const domains = ['gmail.com', 'outlook.com', 'yahoo.com', 'icloud.com']
+    const domain = domains[seed % domains.length]
+    return `${firstName}.${lastName}@${domain}`
+  }
+
+  // Generate fake phone number for players
+  const getPlayerPhone = (playerId: string) => {
+    const seed = playerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    const area = 400 + (seed % 600) // Area codes 400-999
+    const prefix = 200 + (seed * 7 % 800) // Prefix 200-999
+    const line = 1000 + (seed * 13 % 9000) // Line 1000-9999
+    return `(${area}) ${prefix}-${line}`
+  }
+
+  // Generate member since date for players
+  const getPlayerMemberSince = (playerId: string) => {
+    const seed = playerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    const yearsAgo = seed % 5 // 0-4 years ago
+    const monthsAgo = (seed * 7) % 12 // 0-11 months
+    const date = new Date()
+    date.setFullYear(date.getFullYear() - yearsAgo)
+    date.setMonth(date.getMonth() - monthsAgo)
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+  }
+
+  // Get player avatar seed (custom or default)
+  const getPlayerAvatarSeed = (playerId: string, playerName: string) => {
+    return playerCustomData[playerId]?.avatarSeed ?? playerName
+  }
+
   // Trigger animation when drawer opens
   useEffect(() => {
     if (showCourtDrawer) {
@@ -567,6 +678,24 @@ function HomeContent() {
       }, 10)
     }
   }, [showCourtDrawer])
+
+  // Trigger animation when player drawer opens
+  useEffect(() => {
+    if (showPlayerDrawer) {
+      setTimeout(() => {
+        setIsPlayerDrawerAnimating(true)
+      }, 10)
+    }
+  }, [showPlayerDrawer])
+
+  // Trigger animation when event drawer opens
+  useEffect(() => {
+    if (showEventDrawer) {
+      setTimeout(() => {
+        setIsEventDrawerAnimating(true)
+      }, 10)
+    }
+  }, [showEventDrawer])
 
   const filteredAndSortedCourts = useMemo(() => {
     let filtered = courts.filter(court => {
@@ -805,9 +934,19 @@ function HomeContent() {
                       return (
                         <tr key={event.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4">
-                            <Link href={`/events/${event.id}`} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition underline">
+                            <button
+                              onClick={async () => {
+                                setSelectedEvent(event)
+                                setEventDrawerTab('matches')
+                                setCollapsedSets(new Set())
+                                setEventDrawerData(null) // Clear old data
+                                setShowEventDrawer(true)
+                                await fetchEventDetails(event.id)
+                              }}
+                              className="text-sm font-medium text-gray-900 hover:text-blue-600 transition underline text-left"
+                            >
                               {event.name}
-                            </Link>
+                            </button>
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-600">{formattedDate}</div>
@@ -1009,27 +1148,54 @@ function HomeContent() {
                         </div>
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Member Since</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredAndSortedPlayers.map((player) => {
-                      const initials = player.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+                      const email = player.email || getPlayerEmail(player.id, player.name)
+                      const phone = player.phone || getPlayerPhone(player.id)
+                      const avatarSeed = getPlayerAvatarSeed(player.id, player.name)
+                      const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
                       return (
                         <tr key={player.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-medium text-xs flex-shrink-0">
-                                {initials}
+                              <img 
+                                src={avatarUrl} 
+                                alt={player.name}
+                                className="w-8 h-8 rounded-full flex-shrink-0"
+                              />
+                              <div>
+                                <button
+                                  onClick={() => {
+                                    setSelectedPlayer(player)
+                                    setPlayerEditData({
+                                      name: player.name,
+                                      email: email,
+                                      phone: phone,
+                                      gender: player.gender,
+                                      grade: player.grade,
+                                      nhc: player.nhc,
+                                      plus_minus: player.plus_minus || '',
+                                      avatarSeed: avatarSeed,
+                                      is_active: player.is_active
+                                    })
+                                    setShowPlayerDrawer(true)
+                                  }}
+                                  className="text-sm font-medium text-gray-900 hover:text-blue-600 transition underline text-left"
+                                >
+                                  {player.name}
+                                </button>
+                                <div className="text-xs text-gray-400">{email}</div>
                               </div>
-                              <Link href={`/players/${player.id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 transition">
-                                {player.name}
-                              </Link>
                             </div>
                           </td>
                           <td className="px-6 py-4"><div className="text-sm text-gray-600">{player.gender === 'M' ? 'Male' : 'Female'}</div></td>
                           <td className="px-6 py-4"><div className="text-sm text-gray-600">{translateGrade(player.grade)}{player.plus_minus}{player.nhc && <span className="ml-2 text-orange-600">NHC</span>}</div></td>
-                          <td className="px-6 py-4"><div className="text-sm text-gray-600">{player.email && <div>{player.email}</div>}{player.phone && <div>{player.phone}</div>}{!player.email && !player.phone && '-'}</div></td>
+                          <td className="px-6 py-4"><div className="text-sm text-gray-600">{phone}</div></td>
+                          <td className="px-6 py-4"><div className="text-sm text-gray-600">{getPlayerMemberSince(player.id)}</div></td>
                           <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${player.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{player.is_active ? 'Active' : 'Inactive'}</span></td>
                         </tr>
                       )
@@ -1228,7 +1394,7 @@ function HomeContent() {
                                 })
                                 setShowCourtDrawer(true)
                               }}
-                              className="text-sm font-medium text-blue-600 hover:text-blue-800 underline text-left"
+                              className="text-sm font-medium text-gray-900 hover:text-blue-600 transition underline text-left"
                             >
                               {courtName}
                             </button>
@@ -1399,6 +1565,7 @@ function HomeContent() {
         </div>
       )}
 
+      {/* Court Profile Drawer */}
       {/* Court Profile Drawer */}
       {showCourtDrawer && selectedCourt && courtEditData && (
         <>
@@ -1669,6 +1836,552 @@ function HomeContent() {
                 </button>
               </div>
             </div>
+          </div>
+        </>
+      )}
+
+      {/* Player Profile Drawer */}
+      {showPlayerDrawer && selectedPlayer && playerEditData && (
+        <>
+          <div 
+            className={`fixed inset-0 bg-black z-40 transition-opacity duration-300 ${
+              isPlayerDrawerAnimating && !isPlayerDrawerClosing ? 'opacity-50' : 'opacity-0'
+            }`}
+            onClick={handleClosePlayerDrawer}
+          />
+          <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl z-50 flex flex-col transition-transform duration-300 ease-out ${
+            isPlayerDrawerAnimating && !isPlayerDrawerClosing ? 'translate-x-0' : 'translate-x-full'
+          }`}>
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Player profile</h2>
+                <button
+                  onClick={handleClosePlayerDrawer}
+                  className="text-gray-400 hover:text-gray-600 transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form className="space-y-5 pb-6" onSubmit={(e) => {
+                e.preventDefault()
+                // Save changes
+                setPlayerCustomData(prev => ({
+                  ...prev,
+                  [selectedPlayer.id]: {
+                    avatarSeed: playerEditData.avatarSeed
+                  }
+                }))
+                
+                // Update the player in the players array
+                setPlayers(prev => prev.map(p => 
+                  p.id === selectedPlayer.id 
+                    ? { 
+                        ...p, 
+                        name: playerEditData.name,
+                        email: playerEditData.email,
+                        phone: playerEditData.phone,
+                        gender: playerEditData.gender,
+                        grade: playerEditData.grade,
+                        nhc: playerEditData.nhc,
+                        plus_minus: playerEditData.plus_minus || null,
+                        is_active: playerEditData.is_active
+                      }
+                    : p
+                ))
+                
+                handleClosePlayerDrawer()
+              }}>
+                {/* Profile Picture */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Profile picture</label>
+                  <div className="flex items-center gap-4">
+                    <img 
+                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(playerEditData.avatarSeed)}`}
+                      alt="Avatar preview"
+                      className="w-16 h-16 rounded-full"
+                    />
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        value={playerEditData.avatarSeed}
+                        onChange={(e) => setPlayerEditData({ ...playerEditData, avatarSeed: e.target.value })}
+                        placeholder="Enter any text to generate avatar"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Change the text to generate a different avatar</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                  <input
+                    type="text"
+                    value={playerEditData.name}
+                    onChange={(e) => setPlayerEditData({ ...playerEditData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input
+                    type="email"
+                    value={playerEditData.email}
+                    onChange={(e) => setPlayerEditData({ ...playerEditData, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                  <input
+                    type="tel"
+                    value={playerEditData.phone}
+                    onChange={(e) => setPlayerEditData({ ...playerEditData, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        value="M"
+                        checked={playerEditData.gender === 'M'}
+                        onChange={(e) => setPlayerEditData({ ...playerEditData, gender: e.target.value as 'M' | 'F' })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Male</span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        value="F"
+                        checked={playerEditData.gender === 'F'}
+                        onChange={(e) => setPlayerEditData({ ...playerEditData, gender: e.target.value as 'M' | 'F' })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Female</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Grade</label>
+                    <select 
+                      value={playerEditData.grade} 
+                      onChange={(e) => setPlayerEditData({ ...playerEditData, grade: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    >
+                      <option value={1}>Grade 3A</option>
+                      <option value={2}>Grade 3</option>
+                      <option value={3}>Grade 2B</option>
+                      <option value={4}>Grade 2A</option>
+                      <option value={5}>Grade 2</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Plus/Minus</label>
+                    <select 
+                      value={playerEditData.plus_minus} 
+                      onChange={(e) => setPlayerEditData({ ...playerEditData, plus_minus: e.target.value as '' | '+' | '-' })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    >
+                      <option value="">None</option>
+                      <option value="+">+</option>
+                      <option value="-">-</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPlayerEditData({ ...playerEditData, is_active: true })}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition border-2 ${
+                        playerEditData.is_active
+                          ? 'bg-green-50 text-green-700 border-green-300'
+                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      Active
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPlayerEditData({ ...playerEditData, is_active: false })}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition border-2 ${
+                        !playerEditData.is_active
+                          ? 'bg-gray-50 text-gray-700 border-gray-300'
+                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      Inactive
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={playerEditData.nhc} 
+                      onChange={(e) => setPlayerEditData({ ...playerEditData, nhc: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">NHC (New/Hasn't Competed)</span>
+                  </label>
+                </div>
+              </form>
+            </div>
+
+            {/* Sticky Footer */}
+            <div className="border-t bg-white p-4">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleClosePlayerDrawer}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-semibold text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    // Save changes
+                    setPlayerCustomData(prev => ({
+                      ...prev,
+                      [selectedPlayer.id]: {
+                        avatarSeed: playerEditData.avatarSeed
+                      }
+                    }))
+                    
+                    // Update the player in the players array
+                    setPlayers(prev => prev.map(p => 
+                      p.id === selectedPlayer.id 
+                        ? { 
+                            ...p, 
+                            name: playerEditData.name,
+                            email: playerEditData.email,
+                            phone: playerEditData.phone,
+                            gender: playerEditData.gender,
+                            grade: playerEditData.grade,
+                            nhc: playerEditData.nhc,
+                            plus_minus: playerEditData.plus_minus || null,
+                            is_active: playerEditData.is_active
+                          }
+                        : p
+                    ))
+                    
+                    handleClosePlayerDrawer()
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm"
+                >
+                  Save changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Event Overview Drawer */}
+      {showEventDrawer && selectedEvent && (
+        <>
+          <div 
+            className={`fixed inset-0 bg-black z-40 transition-opacity duration-300 ${
+              isEventDrawerAnimating && !isEventDrawerClosing ? 'opacity-50' : 'opacity-0'
+            }`}
+            onClick={handleCloseEventDrawer}
+          />
+          <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl z-50 flex flex-col transition-transform duration-300 ease-out ${
+            isEventDrawerAnimating && !isEventDrawerClosing ? 'translate-x-0' : 'translate-x-full'
+          }`}>
+            {!eventDrawerData ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading event details...</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto">
+              {/* Header */}
+              <div className="p-6 pb-4 border-b">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h2 className="text-xl font-bold text-gray-900">{selectedEvent.name}</h2>
+                      {(() => {
+                        const today = new Date()
+                        today.setHours(0, 0, 0, 0)
+                        const eventDateOnly = new Date(selectedEvent.event_date)
+                        eventDateOnly.setHours(0, 0, 0, 0)
+                        const isPast = eventDateOnly < today
+                        const status = isPast ? 'Completed' : 'Coming up'
+                        const statusColor = isPast ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-800'
+                        
+                        return (
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
+                            {status}
+                          </span>
+                        )
+                      })()}
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <span>
+                        {new Date(selectedEvent.event_date).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </span>
+                      <span>
+                        {selectedEvent.start_time ? new Date(`2000-01-01T${selectedEvent.start_time}`).toLocaleTimeString('en-US', { 
+                          hour: 'numeric', 
+                          minute: '2-digit',
+                          hour12: true 
+                        }) : '-'}
+                      </span>
+                      <span>{selectedEvent.total_sets} sets</span>
+                      <span className="capitalize">{selectedEvent.match_format || 'Same-Sex'}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleCloseEventDrawer}
+                    className="text-gray-400 hover:text-gray-600 transition ml-4"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex gap-1 mt-4">
+                  <button
+                    onClick={() => setEventDrawerTab('matches')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
+                      eventDrawerTab === 'matches'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    Matches
+                  </button>
+                  <button
+                    onClick={() => setEventDrawerTab('courts')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
+                      eventDrawerTab === 'courts'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    Courts ({eventDrawerData.courts.length})
+                  </button>
+                  <button
+                    onClick={() => setEventDrawerTab('players')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
+                      eventDrawerTab === 'players'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    Players ({eventDrawerData.players.length})
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab Content */}
+              <div className="p-6">
+                {/* Matches Tab */}
+                {eventDrawerTab === 'matches' && (
+                  <div>
+                    {Object.keys(eventDrawerData.matches).length === 0 ? (
+                      <p className="text-sm text-gray-500">No matches generated yet</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {Object.entries(eventDrawerData.matches).map(([setNum, matches]) => {
+                          const setKey = `${selectedEvent.id}-${setNum}`
+                          const isCollapsed = collapsedSets.has(setKey)
+                          
+                          return (
+                            <div key={setNum}>
+                              <button
+                                onClick={() => {
+                                  const newCollapsed = new Set(collapsedSets)
+                                  if (isCollapsed) {
+                                    newCollapsed.delete(setKey)
+                                  } else {
+                                    newCollapsed.add(setKey)
+                                  }
+                                  setCollapsedSets(newCollapsed)
+                                }}
+                                className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 mb-2 hover:text-gray-900 transition"
+                              >
+                                <span>Set {setNum}</span>
+                                <svg 
+                                  className={`w-4 h-4 transition-transform ${isCollapsed ? '' : 'rotate-180'}`}
+                                  fill="none" 
+                                  stroke="currentColor" 
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              
+                              {!isCollapsed && (
+                                <div className="space-y-3">
+                                  {matches.map((match: any) => (
+                                    <div key={match.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                      {/* Court Header */}
+                                      <div className="bg-blue-50 px-3 py-2 border-b border-blue-100 flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-blue-900">
+                                          Court: {match.court}
+                                        </span>
+                                        <span className="text-xs text-blue-700 capitalize">
+                                          {match.surface_type}
+                                        </span>
+                                      </div>
+                                      
+                                      {/* Teams */}
+                                      <div className="p-3 space-y-2">
+                                        {/* Team 1 */}
+                                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                                          {match.team1?.map((p: any) => {
+                                            const avatarSeed = getPlayerAvatarSeed(p.id, p.name)
+                                            const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
+                                            return (
+                                              <div key={p.id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 border border-gray-200 rounded-full text-xs">
+                                                <img 
+                                                  src={avatarUrl} 
+                                                  alt={p.name}
+                                                  className="w-5 h-5 rounded-full flex-shrink-0"
+                                                />
+                                                <span className="text-gray-900 font-medium">{p.name}</span>
+                                              </div>
+                                            )
+                                          })}
+                                        </div>
+                                        
+                                        {/* VS Divider */}
+                                        <div className="flex items-center gap-2">
+                                          <div className="flex-1 border-t border-gray-200"></div>
+                                          <span className="text-xs font-semibold text-gray-400">VS</span>
+                                          <div className="flex-1 border-t border-gray-200"></div>
+                                        </div>
+                                        
+                                        {/* Team 2 */}
+                                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                                          {match.team2?.map((p: any) => {
+                                            const avatarSeed = getPlayerAvatarSeed(p.id, p.name)
+                                            const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
+                                            return (
+                                              <div key={p.id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 border border-gray-200 rounded-full text-xs">
+                                                <img 
+                                                  src={avatarUrl} 
+                                                  alt={p.name}
+                                                  className="w-5 h-5 rounded-full flex-shrink-0"
+                                                />
+                                                <span className="text-gray-900 font-medium">{p.name}</span>
+                                              </div>
+                                            )
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Courts Tab */}
+                {eventDrawerTab === 'courts' && (
+                  <div>
+                    {eventDrawerData.courts.length === 0 ? (
+                      <p className="text-sm text-gray-500">No courts selected</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {eventDrawerData.courts.map((court: any) => (
+                          <div key={court.court_id} className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg text-sm">
+                            <span className="font-medium text-gray-900">{court.court_name}</span>
+                            <span className="text-xs text-gray-500 capitalize">({court.surface_type})</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Players Tab */}
+                {eventDrawerTab === 'players' && (
+                  <div>
+                    {eventDrawerData.players.length === 0 ? (
+                      <p className="text-sm text-gray-500">No players selected</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {eventDrawerData.players.map((player: any) => {
+                          const avatarSeed = getPlayerAvatarSeed(player.player_id, player.player_name)
+                          const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
+                          return (
+                            <div key={player.player_id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-full text-xs">
+                              <img 
+                                src={avatarUrl} 
+                                alt={player.player_name}
+                                className="w-5 h-5 rounded-full flex-shrink-0"
+                              />
+                              <span className="text-gray-900">{player.player_name}</span>
+                              <span className="text-gray-500">
+                                {translateGrade(player.grade)}{player.plus_minus}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Sticky Footer */}
+            <div className="border-t bg-white p-4">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleCloseEventDrawer}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-semibold text-sm"
+                >
+                  Close
+                </button>
+                <Link
+                  href={`/events/${selectedEvent.id}`}
+                  className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm text-center no-underline"
+                >
+                  Edit event
+                </Link>
+              </div>
+            </div>
+            </>
+            )}
           </div>
         </>
       )}
