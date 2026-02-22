@@ -2211,8 +2211,8 @@ function HomeContent() {
                     {Object.keys(eventDrawerData.matches).length === 0 ? (
                       <p className="text-sm text-gray-500">No matches generated yet</p>
                     ) : (
-                      <div className="space-y-4">
-                        {Object.entries(eventDrawerData.matches).map(([setNum, matches]) => {
+                      <div className="space-y-6">
+                        {Object.entries(eventDrawerData.matches).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([setNum, matches]) => {
                           const setKey = `${selectedEvent.id}-${setNum}`
                           const isCollapsed = collapsedSets.has(setKey)
                           
@@ -2228,78 +2228,83 @@ function HomeContent() {
                                   }
                                   setCollapsedSets(newCollapsed)
                                 }}
-                                className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 mb-2 hover:text-gray-900 transition"
+                                className="w-full flex items-center justify-between text-left mb-3 hover:opacity-70 transition"
                               >
-                                <span>Set {setNum}</span>
-                                <svg 
-                                  className={`w-4 h-4 transition-transform ${isCollapsed ? '' : 'rotate-180'}`}
-                                  fill="none" 
-                                  stroke="currentColor" 
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                                <h3 className="text-lg font-bold text-gray-900">Set {setNum}</h3>
+                                <ChevronDown 
+                                  className={`w-5 h-5 text-gray-600 transition-transform ${isCollapsed ? 'rotate-180' : ''}`}
+                                />
                               </button>
                               
                               {!isCollapsed && (
                                 <div className="space-y-3">
                                   {matches.map((match: any) => (
-                                    <div key={match.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                    <div key={match.id} className="bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow overflow-hidden">
                                       {/* Court Header */}
-                                      <div className="bg-blue-50 px-3 py-2 border-b border-blue-100 flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-blue-900">
-                                          Court: {match.court}
-                                        </span>
-                                        <span className="text-xs text-blue-700 capitalize">
-                                          {match.surface_type}
-                                        </span>
+                                      <div className="bg-gray-50 border-b border-gray-200 px-4 py-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-semibold text-gray-700">{match.court}</span>
+                                          <span className="text-[10px] text-gray-400">•</span>
+                                          <span className="text-[10px] text-gray-500 capitalize">{match.surface_type}</span>
+                                        </div>
                                       </div>
                                       
-                                      {/* Teams */}
-                                      <div className="p-3 space-y-2">
+                                      {/* Match Players */}
+                                      <div className="p-3 space-y-3">
                                         {/* Team 1 */}
-                                        <div className="flex flex-wrap items-center justify-center gap-1.5">
-                                          {match.team1?.map((p: any) => {
-                                            const avatarSeed = getPlayerAvatarSeed(p.id, p.name)
+                                        <div className="space-y-1.5">
+                                          {match.team1?.map((player: any) => {
+                                            const avatarSeed = getPlayerAvatarSeed(player.id, player.name)
                                             const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
                                             return (
-                                              <div key={p.id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 border border-gray-200 rounded-full text-xs">
+                                              <div key={player.id} className="flex items-center gap-2">
                                                 <img 
                                                   src={avatarUrl} 
-                                                  alt={p.name}
-                                                  className="w-5 h-5 rounded-full flex-shrink-0"
+                                                  alt={player.name}
+                                                  className="w-6 h-6 rounded-full flex-shrink-0"
                                                 />
-                                                <span className="text-gray-900 font-medium">{p.name}</span>
+                                                <div className="min-w-0 flex-1">
+                                                  <div className="text-xs font-medium text-gray-900 truncate">{player.name}</div>
+                                                  <div className="text-[10px] text-gray-500">
+                                                    {player.gender} • {translateGrade(player.grade)}{player.plus_minus || ''}
+                                                  </div>
+                                                </div>
                                               </div>
                                             )
                                           })}
                                         </div>
                                         
-                                        {/* VS Divider */}
-                                        <div className="flex items-center gap-2">
-                                          <div className="flex-1 border-t border-gray-200"></div>
-                                          <span className="text-xs font-semibold text-gray-400">VS</span>
-                                          <div className="flex-1 border-t border-gray-200"></div>
+                                        {/* VS */}
+                                        <div className="text-center">
+                                          <span className="text-xs font-bold text-gray-400">vs</span>
                                         </div>
                                         
                                         {/* Team 2 */}
-                                        <div className="flex flex-wrap items-center justify-center gap-1.5">
-                                          {match.team2?.map((p: any) => {
-                                            const avatarSeed = getPlayerAvatarSeed(p.id, p.name)
+                                        <div className="space-y-1.5">
+                                          {match.team2?.map((player: any) => {
+                                            const avatarSeed = getPlayerAvatarSeed(player.id, player.name)
                                             const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
                                             return (
-                                              <div key={p.id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 border border-gray-200 rounded-full text-xs">
+                                              <div key={player.id} className="flex items-center gap-2">
                                                 <img 
                                                   src={avatarUrl} 
-                                                  alt={p.name}
-                                                  className="w-5 h-5 rounded-full flex-shrink-0"
+                                                  alt={player.name}
+                                                  className="w-6 h-6 rounded-full flex-shrink-0"
                                                 />
-                                                <span className="text-gray-900 font-medium">{p.name}</span>
+                                                <div className="min-w-0 flex-1">
+                                                  <div className="text-xs font-medium text-gray-900 truncate">{player.name}</div>
+                                                  <div className="text-[10px] text-gray-500">
+                                                    {player.gender} • {translateGrade(player.grade)}{player.plus_minus || ''}
+                                                  </div>
+                                                </div>
                                               </div>
                                             )
                                           })}
                                         </div>
                                       </div>
+                                      {match.notes && (
+                                        <div className="px-4 pb-2 text-xs text-gray-500 italic border-t border-gray-100 pt-2">{match.notes}</div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
