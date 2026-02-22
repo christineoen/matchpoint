@@ -1222,7 +1222,7 @@ function HomeContent() {
                                 setCourtEditData({
                                   name: courtName,
                                   number: courtNumber,
-                                  surface_type: court.surface_type,
+                                  surface_type: court.surface_type as 'hard' | 'grass',
                                   days: courtDays,
                                   status: courtStatus
                                 })
