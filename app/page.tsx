@@ -1175,12 +1175,12 @@ function HomeContent() {
                                       name: player.name,
                                       email: email,
                                       phone: phone,
-                                      gender: player.gender,
+                                      gender: player.gender as 'M' | 'F',
                                       grade: player.grade,
-                                      nhc: player.nhc,
-                                      plus_minus: player.plus_minus || '',
+                                      nhc: player.nhc ?? false,
+                                      plus_minus: (player.plus_minus || '') as '' | '+' | '-',
                                       avatarSeed: avatarSeed,
-                                      is_active: player.is_active
+                                      is_active: player.is_active ?? true
                                     })
                                     setShowPlayerDrawer(true)
                                   }}
@@ -2156,7 +2156,6 @@ function HomeContent() {
                         }) : '-'}
                       </span>
                       <span>{selectedEvent.total_sets} sets</span>
-                      <span className="capitalize">{selectedEvent.match_format || 'Same-Sex'}</span>
                     </div>
                   </div>
                   <button
