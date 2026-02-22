@@ -64,7 +64,7 @@ export default function Header() {
     <header className="bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <Link href="/" className="hover:opacity-80 transition">
+          <Link href="/?tab=events" className="hover:opacity-80 transition">
             <h1 className="text-lg font-semibold text-gray-900">Match Maker</h1>
           </Link>
 
