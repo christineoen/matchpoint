@@ -1698,37 +1698,17 @@ function HomeContent() {
                 </button>
               </div>
 
-              <form className="space-y-5 pb-6" onSubmit={(e) => {
-                e.preventDefault()
-                // Save changes to courtCustomData
-                setCourtCustomData(prev => ({
-                  ...prev,
-                  [selectedCourt.id]: {
-                    name: courtEditData.name,
-                    number: courtEditData.number,
-                    days: courtEditData.days,
-                    status: courtEditData.status
-                  }
-                }))
-                
-                // Update the court surface type in the courts array
-                setCourts(prev => prev.map(c => 
-                  c.id === selectedCourt.id 
-                    ? { ...c, surface_type: courtEditData.surface_type }
-                    : c
-                ))
-                
-                handleCloseDrawer()
-              }}>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                  <input
-                    type="text"
-                    value={courtEditData.name}
-                    onChange={(e) => setCourtEditData({ ...courtEditData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  />
-                </div>
+              {courtEditData && (
+                <form className="space-y-5 pb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                    <input
+                      type="text"
+                      value={courtEditData.name}
+                      onChange={(e) => setCourtEditData({ ...courtEditData, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    />
+                  </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
@@ -1890,6 +1870,7 @@ function HomeContent() {
                   </div>
                 </div>
               </form>
+              )}
             </div>
 
             {/* Sticky Footer */}
@@ -1906,6 +1887,8 @@ function HomeContent() {
                   type="submit"
                   onClick={async (e) => {
                     e.preventDefault()
+                    
+                    if (!courtEditData) return
                     
                     if (selectedCourt) {
                       // Edit mode: Save changes to courtCustomData
@@ -1986,65 +1969,66 @@ function HomeContent() {
                 </button>
               </div>
 
-              <form className="space-y-5 pb-6" onSubmit={async (e) => {
-                e.preventDefault()
-                
-                if (selectedPlayer) {
-                  // Edit mode - update existing player
-                  setPlayerCustomData(prev => ({
-                    ...prev,
-                    [selectedPlayer.id]: {
-                      avatarSeed: playerEditData.avatarSeed
-                    }
-                  }))
+              {playerEditData && (
+                <form className="space-y-5 pb-6" onSubmit={async (e) => {
+                  e.preventDefault()
                   
-                  setPlayers(prev => prev.map(p => 
-                    p.id === selectedPlayer.id 
-                      ? { 
-                          ...p, 
-                          name: playerEditData.name,
-                          email: playerEditData.email,
-                          phone: playerEditData.phone,
-                          gender: playerEditData.gender,
-                          grade: playerEditData.grade,
-                          nhc: playerEditData.nhc,
-                          plus_minus: playerEditData.plus_minus || null,
-                          is_active: playerEditData.is_active
-                        }
-                      : p
-                  ))
-                  
-                  handleClosePlayerDrawer()
-                } else {
-                  // Add mode - create new player
-                  try {
-                    const response = await fetch('/api/players', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        ...playerEditData,
-                        plus_minus: playerEditData.plus_minus || null,
-                      }),
-                    })
-
-                    if (!response.ok) throw new Error('Failed to create player')
-
-                    await fetchPlayers()
+                  if (selectedPlayer) {
+                    // Edit mode - update existing player
+                    setPlayerCustomData(prev => ({
+                      ...prev,
+                      [selectedPlayer.id]: {
+                        avatarSeed: playerEditData.avatarSeed
+                      }
+                    }))
+                    
+                    setPlayers(prev => prev.map(p => 
+                      p.id === selectedPlayer.id 
+                        ? { 
+                            ...p, 
+                            name: playerEditData.name,
+                            email: playerEditData.email,
+                            phone: playerEditData.phone,
+                            gender: playerEditData.gender,
+                            grade: playerEditData.grade,
+                            nhc: playerEditData.nhc,
+                            plus_minus: playerEditData.plus_minus || null,
+                            is_active: playerEditData.is_active
+                          }
+                        : p
+                    ))
+                    
                     handleClosePlayerDrawer()
-                  } catch (error) {
-                    alert('Failed to create player')
+                  } else {
+                    // Add mode - create new player
+                    try {
+                      const response = await fetch('/api/players', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          ...playerEditData,
+                          plus_minus: playerEditData.plus_minus || null,
+                        }),
+                      })
+
+                      if (!response.ok) throw new Error('Failed to create player')
+
+                      await fetchPlayers()
+                      handleClosePlayerDrawer()
+                    } catch (error) {
+                      alert('Failed to create player')
+                    }
                   }
-                }
-              }}>
-                {/* Profile Picture */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Profile picture</label>
-                  <div className="flex items-center gap-4">
-                    <img 
-                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(playerEditData.avatarSeed)}`}
-                      alt="Avatar preview"
-                      className="w-16 h-16 rounded-full"
-                    />
+                }}>
+                  {/* Profile Picture */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Profile picture</label>
+                    <div className="flex items-center gap-4">
+                      <img 
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(playerEditData.avatarSeed)}`}
+                        alt="Avatar preview"
+                        className="w-16 h-16 rounded-full"
+                      />
                     <div className="flex-1">
                       <input
                         type="text"
@@ -2185,6 +2169,7 @@ function HomeContent() {
                   </label>
                 </div>
               </form>
+              )}
             </div>
 
             {/* Sticky Footer */}
@@ -2201,6 +2186,8 @@ function HomeContent() {
                   type="submit"
                   onClick={async (e) => {
                     e.preventDefault()
+                    
+                    if (!playerEditData) return
                     
                     if (selectedPlayer) {
                       // Edit mode: Save changes
