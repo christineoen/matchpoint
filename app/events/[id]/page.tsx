@@ -117,8 +117,14 @@ export default function EventDetailPage() {
       if (data.event.name) {
         setEventName(data.event.name)
       }
+      if (data.event.total_sets) {
+        setCurrentSet(data.event.total_sets)
+      }
+      
+      return data.event
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
+      return null
     } finally {
       setLoading(false)
     }
@@ -135,6 +141,7 @@ export default function EventDetailPage() {
           name: eventName,
           event_date: eventDateInput,
           start_time: eventTimeInput,
+          total_sets: currentSet,
         }),
       })
       if (!response.ok) throw new Error('Failed to save settings')
@@ -306,22 +313,32 @@ export default function EventDetailPage() {
       })
       if (!response.ok) throw new Error('Failed to save players')
       
-      // After saving players, generate matches automatically
-      const matchResponse = await fetch(`/api/events/${eventId}/generate-matches`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          set_number: currentSet,
-          format: matchFormat,
-        }),
-      })
+      // Refetch event to get the latest total_sets value
+      const latestEvent = await fetchEvent()
       
-      if (!matchResponse.ok) {
-        const data = await matchResponse.json()
-        throw new Error(data.error || 'Failed to generate matches')
+      // After saving players, generate matches for all sets
+      const totalSets = latestEvent?.total_sets || 1
+      console.log('Generating matches for', totalSets, 'sets (event total_sets:', latestEvent?.total_sets, ')')
+      
+      for (let setNum = 1; setNum <= totalSets; setNum++) {
+        console.log('Generating matches for set', setNum)
+        const matchResponse = await fetch(`/api/events/${eventId}/generate-matches`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            set_number: setNum,
+            format: matchFormat,
+          }),
+        })
+        
+        if (!matchResponse.ok) {
+          const data = await matchResponse.json()
+          throw new Error(data.error || `Failed to generate matches for set ${setNum}`)
+        }
+        console.log('Successfully generated matches for set', setNum)
       }
       
-      // Fetch the newly generated matches
+      // Fetch all the newly generated matches
       const matchesResponse = await fetch(`/api/events/${eventId}/matches`)
       if (matchesResponse.ok) {
         const matchesData = await matchesResponse.json()
@@ -385,7 +402,8 @@ export default function EventDetailPage() {
   })
   const setNumbers = Object.keys(matchesBySet).map(Number).sort((a, b) => a - b)
 
-  const isSettingsComplete = settingsSaved
+  // Step 1 is complete if settings have been saved OR if the event already exists (has name, date, etc.)
+  const isSettingsComplete = settingsSaved || (event?.name && event?.event_date && event?.total_sets)
   const isCourtsComplete = selectedCourts.length > 0
   const isPlayersComplete = eventPlayers.length > 0
 
@@ -437,14 +455,14 @@ export default function EventDetailPage() {
                 onClick={() => setCurrentStep('settings')}
                 className={`flex flex-col items-center gap-1 relative z-10 ${currentStep === 'settings' ? '' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs border-2 ${
-                  isSettingsComplete
-                    ? 'border-green-500 bg-green-500 text-white'
-                    : currentStep === 'settings'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
-                    : 'border-gray-300 bg-white text-gray-600'
+                <div className={`rounded-full flex items-center justify-center font-semibold ${
+                  currentStep === 'settings'
+                    ? 'w-10 h-10 text-sm border-4 border-indigo-600 bg-indigo-600 text-white shadow-lg'
+                    : isSettingsComplete
+                    ? 'w-7 h-7 text-xs border-2 border-green-500 bg-green-500 text-white'
+                    : 'w-7 h-7 text-xs border-2 border-gray-300 bg-white text-gray-600'
                 }`}>
-                  {isSettingsComplete ? <Check className="w-4 h-4" /> : '1'}
+                  {isSettingsComplete && currentStep !== 'settings' ? <Check className="w-4 h-4" /> : '1'}
                 </div>
                 <div className="text-center">
                   <div className={`text-sm font-semibold ${currentStep === 'settings' ? 'text-gray-900' : 'text-gray-700'}`}>
@@ -462,14 +480,14 @@ export default function EventDetailPage() {
                 disabled={!isSettingsComplete}
                 className={`flex flex-col items-center gap-1 relative z-10 ${!isSettingsComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs border-2 ${
-                  isCourtsComplete
-                    ? 'border-green-500 bg-green-500 text-white'
-                    : currentStep === 'courts'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
-                    : 'border-gray-300 bg-white text-gray-600'
+                <div className={`rounded-full flex items-center justify-center font-semibold ${
+                  currentStep === 'courts'
+                    ? 'w-10 h-10 text-sm border-4 border-indigo-600 bg-indigo-600 text-white shadow-lg'
+                    : isCourtsComplete
+                    ? 'w-7 h-7 text-xs border-2 border-green-500 bg-green-500 text-white'
+                    : 'w-7 h-7 text-xs border-2 border-gray-300 bg-white text-gray-600'
                 }`}>
-                  {isCourtsComplete ? <Check className="w-4 h-4" /> : '2'}
+                  {isCourtsComplete && currentStep !== 'courts' ? <Check className="w-4 h-4" /> : '2'}
                 </div>
                 <div className="text-center">
                   <div className={`text-sm font-semibold ${currentStep === 'courts' ? 'text-gray-900' : 'text-gray-700'}`}>
@@ -487,14 +505,14 @@ export default function EventDetailPage() {
                 disabled={!isCourtsComplete}
                 className={`flex flex-col items-center gap-1 relative z-10 ${!isCourtsComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs border-2 ${
-                  isPlayersComplete
-                    ? 'border-green-500 bg-green-500 text-white'
-                    : currentStep === 'players'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
-                    : 'border-gray-300 bg-white text-gray-600'
+                <div className={`rounded-full flex items-center justify-center font-semibold ${
+                  currentStep === 'players'
+                    ? 'w-10 h-10 text-sm border-4 border-indigo-600 bg-indigo-600 text-white shadow-lg'
+                    : isPlayersComplete
+                    ? 'w-7 h-7 text-xs border-2 border-green-500 bg-green-500 text-white'
+                    : 'w-7 h-7 text-xs border-2 border-gray-300 bg-white text-gray-600'
                 }`}>
-                  {isPlayersComplete ? <Check className="w-4 h-4" /> : '3'}
+                  {isPlayersComplete && currentStep !== 'players' ? <Check className="w-4 h-4" /> : '3'}
                 </div>
                 <div className="text-center">
                   <div className={`text-sm font-semibold ${currentStep === 'players' ? 'text-gray-900' : 'text-gray-700'}`}>
@@ -512,10 +530,10 @@ export default function EventDetailPage() {
                 disabled={!isPlayersComplete}
                 className={`flex flex-col items-center gap-1 relative z-10 ${!isPlayersComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs border-2 ${
+                <div className={`rounded-full flex items-center justify-center font-semibold ${
                   currentStep === 'matches'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
-                    : 'border-gray-300 bg-white text-gray-600'
+                    ? 'w-10 h-10 text-sm border-4 border-indigo-600 bg-indigo-600 text-white shadow-lg'
+                    : 'w-7 h-7 text-xs border-2 border-gray-300 bg-white text-gray-600'
                 }`}>
                   4
                 </div>
@@ -590,7 +608,7 @@ export default function EventDetailPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={() => setMatchFormat('Same-Sex')}
-                        className={`px-4 py-3 border-2 rounded-lg font-medium transition text-sm ${
+                        className={`px-4 py-3 border-2 rounded-xl font-medium transition text-lg ${
                           matchFormat === 'Same-Sex'
                             ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
                             : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-300'
@@ -600,7 +618,7 @@ export default function EventDetailPage() {
                       </button>
                       <button
                         onClick={() => setMatchFormat('Mixed')}
-                        className={`px-4 py-3 border-2 rounded-lg font-medium transition text-sm ${
+                        className={`px-4 py-3 border-2 rounded-xl font-medium transition text-lg ${
                           matchFormat === 'Mixed'
                             ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
                             : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-300'
@@ -632,15 +650,9 @@ export default function EventDetailPage() {
                 </div>
               </div>
 
-              {/* Sticky Footer with Cancel and Continue Buttons */}
+              {/* Sticky Footer with Continue Button */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
-                <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between">
-                  <Link
-                    href="/"
-                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium"
-                  >
-                    Cancel
-                  </Link>
+                <div className="max-w-7xl mx-auto px-8 py-4 flex justify-end">
                   <button
                     onClick={saveSettings}
                     disabled={saving || !eventName || !matchFormat || !currentSet || !eventDateInput || !eventTimeInput}
@@ -736,15 +748,15 @@ export default function EventDetailPage() {
                 </div>
               </div>
 
-              {/* Sticky Footer with Cancel and Continue Buttons */}
+              {/* Sticky Footer with Back and Continue Buttons */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
                 <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between">
-                  <Link
-                    href="/"
-                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium"
+                  <button
+                    onClick={() => setCurrentStep('settings')}
+                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium no-underline"
                   >
-                    Cancel
-                  </Link>
+                    Back
+                  </button>
                   <button
                     onClick={saveCourts}
                     disabled={selectedCourts.length === 0 || saving}
@@ -864,15 +876,15 @@ export default function EventDetailPage() {
                 </div>
               </div>
 
-              {/* Sticky Footer with Cancel and Continue Buttons */}
+              {/* Sticky Footer with Back and Continue Buttons */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
                 <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between">
-                  <Link
-                    href="/"
-                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium"
+                  <button
+                    onClick={() => setCurrentStep('courts')}
+                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium no-underline"
                   >
-                    Cancel
-                  </Link>
+                    Back
+                  </button>
                   <button
                     onClick={savePlayers}
                     disabled={eventPlayers.length === 0 || saving || generating}
@@ -893,26 +905,13 @@ export default function EventDetailPage() {
           {currentStep === 'matches' && (
             <div className="pb-24">
               <div className="text-center mb-6">
-                <div className="flex items-center justify-center gap-4">
-                  <h2 className="text-2xl font-bold text-gray-900">Step 4: Review matches</h2>
-                  <button
-                    onClick={generateMatches}
-                    disabled={generating}
-                    className={`text-sm font-medium underline ${
-                      generating
-                        ? 'text-gray-400 cursor-not-allowed'
-                        : 'text-blue-600 hover:text-blue-700'
-                    }`}
-                  >
-                    {generating ? 'Regenerating...' : 'Regenerate matches'}
-                  </button>
-                </div>
+                <h2 className="text-2xl font-bold text-gray-900">Step 4: Review matches</h2>
               </div>
 
-              {!matchesBySet[currentSet] || matchesBySet[currentSet].length === 0 ? (
+              {Object.keys(matchesBySet).length === 0 ? (
                 <div className="text-center py-12">
                   <ClipboardList className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600 mb-6">No matches generated yet for Set {currentSet}</p>
+                  <p className="text-gray-600 mb-6">No matches generated yet</p>
                   <button
                     onClick={generateMatches}
                     disabled={generating}
@@ -926,81 +925,113 @@ export default function EventDetailPage() {
                   </button>
                 </div>
               ) : (
-                <div>
-                  <div className="space-y-4">
-                    {matchesBySet[currentSet].map((match) => (
-                      <div key={match.id} className="border-2 border-gray-200 rounded-xl p-6 hover:border-gray-300 transition-colors">
-                        <div className="flex gap-6">
-                          <div className="flex-shrink-0">
-                            <div
-                              className={`px-6 py-3 rounded-xl font-bold text-white text-center min-w-[100px] ${
-                                match.surface_type === 'hard' ? 'bg-indigo-600' : 'bg-green-600'
-                              }`}
-                            >
-                              <div className="text-sm opacity-90">Court</div>
-                              <div className="text-xl">{match.court}</div>
-                            </div>
-                          </div>
-                          <div className="flex-1 grid grid-cols-3 gap-6 items-center">
-                            <div className="space-y-2">
-                              {match.team1.map((player) => (
-                                <div
-                                  key={player.id}
-                                  className="bg-blue-50 border-2 border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2"
-                                >
-                                  <span className="font-semibold text-gray-900">{player.name}</span>
-                                  <span className="text-gray-400">•</span>
-                                  <span className="text-sm text-gray-600">{player.gender}</span>
-                                  <span className="text-gray-400">•</span>
-                                  <span className="text-sm text-gray-600">
-                                    {translateGrade(player.grade)}{player.plus_minus || ''}
-                                  </span>
+                <div className="space-y-8">
+                  {Object.entries(matchesBySet).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([setNum, matches]) => (
+                    <div key={setNum}>
+                      <h3 className="text-xl font-bold text-gray-900 mb-4">Set {setNum}</h3>
+                      <div className="space-y-4">
+                        {matches.map((match) => (
+                          <div key={match.id} className="border-2 border-gray-200 rounded-xl p-6 hover:border-gray-300 transition-colors">
+                            <div className="flex gap-6">
+                              <div className="flex-shrink-0 flex">
+                                <div className="px-6 py-3 rounded-xl font-bold text-center min-w-[140px] flex flex-col justify-center bg-green-50 border-2 border-green-200">
+                                  <div className="text-sm text-green-700 mb-1">{match.court}</div>
+                                  <div className="text-xs text-green-600 capitalize">{match.surface_type}</div>
                                 </div>
-                              ))}
-                            </div>
-                            <div className="text-center text-2xl font-bold text-gray-400">VS</div>
-                            <div className="space-y-2">
-                              {match.team2.map((player) => (
-                                <div
-                                  key={player.id}
-                                  className="bg-red-50 border-2 border-red-200 rounded-lg px-4 py-2 flex items-center gap-2"
-                                >
-                                  <span className="font-semibold text-gray-900">{player.name}</span>
-                                  <span className="text-gray-400">•</span>
-                                  <span className="text-sm text-gray-600">{player.gender}</span>
-                                  <span className="text-gray-400">•</span>
-                                  <span className="text-sm text-gray-600">
-                                    {translateGrade(player.grade)}{player.plus_minus || ''}
-                                  </span>
+                              </div>
+                              <div className="flex-1 grid grid-cols-3 gap-6 items-center">
+                                <div className="space-y-2">
+                                  {match.team1.map((player) => {
+                                    const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(player.name)}`
+                                    return (
+                                      <div
+                                        key={player.id}
+                                        className="bg-gray-50 border-2 border-gray-200 rounded-lg px-4 py-3 flex items-center gap-3"
+                                      >
+                                        <img 
+                                          src={avatarUrl} 
+                                          alt={player.name}
+                                          className="w-8 h-8 rounded-full flex-shrink-0"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-semibold text-gray-900 truncate">{player.name}</div>
+                                          <div className="text-xs text-gray-500 flex items-center gap-1">
+                                            <span>{player.gender}</span>
+                                            <span>•</span>
+                                            <span>{translateGrade(player.grade)}{player.plus_minus || ''}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
                                 </div>
-                              ))}
+                                <div className="text-center text-2xl font-bold text-gray-400">VS</div>
+                                <div className="space-y-2">
+                                  {match.team2.map((player) => {
+                                    const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(player.name)}`
+                                    return (
+                                      <div
+                                        key={player.id}
+                                        className="bg-gray-50 border-2 border-gray-200 rounded-lg px-4 py-3 flex items-center gap-3"
+                                      >
+                                        <img 
+                                          src={avatarUrl} 
+                                          alt={player.name}
+                                          className="w-8 h-8 rounded-full flex-shrink-0"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-semibold text-gray-900 truncate">{player.name}</div>
+                                          <div className="text-xs text-gray-500 flex items-center gap-1">
+                                            <span>{player.gender}</span>
+                                            <span>•</span>
+                                            <span>{translateGrade(player.grade)}{player.plus_minus || ''}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
                             </div>
+                            {match.notes && (
+                              <div className="mt-4 text-sm text-gray-500 italic ml-[164px]">{match.notes}</div>
+                            )}
                           </div>
-                        </div>
-                        {match.notes && (
-                          <div className="mt-4 text-sm text-gray-500 italic ml-[124px]">{match.notes}</div>
-                        )}
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {/* Sticky Footer with Cancel and Save Buttons */}
+              {/* Sticky Footer with Back, Regenerate, and Save Buttons */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
                 <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between items-center">
-                  <Link
-                    href="/"
-                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium"
+                  <button
+                    onClick={() => setCurrentStep('players')}
+                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium no-underline"
                   >
-                    Cancel
-                  </Link>
-                  <Link
-                    href="/"
-                    className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-semibold"
-                  >
-                    Save and close
-                  </Link>
+                    Back
+                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={generateMatches}
+                      disabled={generating}
+                      className={`px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-semibold transition no-underline ${
+                        generating
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'hover:border-gray-400 hover:bg-gray-50'
+                      }`}
+                    >
+                      {generating ? 'Regenerating...' : 'Regenerate matches'}
+                    </button>
+                    <Link
+                      href="/"
+                      className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-semibold no-underline"
+                    >
+                      Save and close
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

@@ -81,16 +81,6 @@ export default function Header() {
               Events
             </Link>
             <Link
-              href="/?tab=players"
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
-                isPlayersActive
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              Players
-            </Link>
-            <Link
               href="/?tab=courts"
               className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
                 isCourtsActive
@@ -99,6 +89,16 @@ export default function Header() {
               }`}
             >
               Courts
+            </Link>
+            <Link
+              href="/?tab=players"
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
+                isPlayersActive
+                  ? 'bg-blue-50 text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Players
             </Link>
           </nav>
 
