@@ -14,7 +14,10 @@ export async function GET() {
     
     const { data: events, error } = await supabase
       .from('events')
-      .select('*')
+      .select(`
+        *,
+        event_players(count)
+      `)
       .order('event_date', { ascending: false })
 
     if (error) {
@@ -22,7 +25,14 @@ export async function GET() {
       throw error
     }
 
-    return NextResponse.json({ events })
+    // Transform the data to include player_count
+    const eventsWithCount = events?.map(event => ({
+      ...event,
+      player_count: event.event_players?.[0]?.count || 0,
+      event_players: undefined, // Remove the nested object
+    }))
+
+    return NextResponse.json({ events: eventsWithCount })
   } catch (error) {
     console.error('Error fetching events:', error)
     return NextResponse.json(

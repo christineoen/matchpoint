@@ -81,7 +81,7 @@ export default function Header() {
               href="/?tab=events"
               className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
                 isEventsActive
-                  ? 'bg-indigo-50 text-indigo-600'
+                  ? 'bg-blue-50 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
@@ -91,7 +91,7 @@ export default function Header() {
               href="/?tab=players"
               className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
                 isPlayersActive
-                  ? 'bg-indigo-50 text-indigo-600'
+                  ? 'bg-blue-50 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
@@ -101,7 +101,7 @@ export default function Header() {
               href="/?tab=courts"
               className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
                 isCourtsActive
-                  ? 'bg-indigo-50 text-indigo-600'
+                  ? 'bg-blue-50 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
@@ -113,9 +113,9 @@ export default function Header() {
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-2 hover:opacity-80 transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded-full"
+                className="flex items-center gap-2 hover:opacity-80 transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full"
               >
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-medium text-sm shadow-sm">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center font-medium text-sm shadow-sm">
                   {getInitials(user.email)}
                 </div>
               </button>
