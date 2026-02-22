@@ -70,6 +70,18 @@ export default function EventDetailPage() {
   const [eventTimeInput, setEventTimeInput] = useState('')
   const [eventName, setEventName] = useState('')
   
+  // Change tracking state - store original values when event is loaded
+  const [originalSettings, setOriginalSettings] = useState<{
+    name: string
+    date: string
+    time: string
+    format: 'Same-Sex' | 'Mixed'
+    sets: number
+  } | null>(null)
+  const [originalCourtIds, setOriginalCourtIds] = useState<string[]>([])
+  const [originalPlayerIds, setOriginalPlayerIds] = useState<string[]>([])
+  const [hasChanges, setHasChanges] = useState(false)
+  
   // UI state
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -77,6 +89,8 @@ export default function EventDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [expandedSets, setExpandedSets] = useState<Set<number>>(new Set())
+  const [showMatchesMenu, setShowMatchesMenu] = useState(false)
+  const [initialStepSet, setInitialStepSet] = useState(false)
 
   // Toggle set expansion
   const toggleSet = (setNum: number) => {
@@ -168,13 +182,61 @@ export default function EventDetailPage() {
   
   // Set initial step based on whether matches exist
   useEffect(() => {
-    if (Object.keys(matchesBySet).length > 0) {
-      setCurrentStep('matches')
-      // Expand all sets by default
-      const setNumbers = Object.keys(matchesBySet).map(k => parseInt(k))
-      setExpandedSets(new Set(setNumbers))
+    if (!loading) {
+      if (Object.keys(matchesBySet).length > 0) {
+        setCurrentStep('matches')
+        // Expand all sets by default
+        const setNumbers = Object.keys(matchesBySet).map(k => parseInt(k))
+        setExpandedSets(new Set(setNumbers))
+      }
+      setInitialStepSet(true)
     }
-  }, [matchesBySet])
+  }, [matchesBySet, loading])
+
+  // Close matches menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement
+      if (showMatchesMenu && !target.closest('.relative')) {
+        setShowMatchesMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMatchesMenu])
+
+  // Detect changes to settings, courts, or players
+  useEffect(() => {
+    // For new events (no original values), always show regenerate button
+    if (!originalSettings || originalCourtIds.length === 0 || originalPlayerIds.length === 0) {
+      setHasChanges(true) // Treat new events as having changes
+      return
+    }
+
+    // Check settings changes
+    const settingsChanged = 
+      eventName !== originalSettings.name ||
+      eventDateInput !== originalSettings.date ||
+      eventTimeInput !== originalSettings.time ||
+      matchFormat !== originalSettings.format ||
+      currentSet !== originalSettings.sets
+
+    // Check courts changes
+    const currentCourtIds = selectedCourts.map(c => c.court_id).sort()
+    const originalCourtIdsSorted = [...originalCourtIds].sort()
+    const courtsChanged = 
+      currentCourtIds.length !== originalCourtIdsSorted.length ||
+      currentCourtIds.some((id, index) => id !== originalCourtIdsSorted[index])
+
+    // Check players changes
+    const currentPlayerIds = eventPlayers.map(p => p.player_id).sort()
+    const originalPlayerIdsSorted = [...originalPlayerIds].sort()
+    const playersChanged = 
+      currentPlayerIds.length !== originalPlayerIdsSorted.length ||
+      currentPlayerIds.some((id, index) => id !== originalPlayerIdsSorted[index])
+
+    setHasChanges(settingsChanged || courtsChanged || playersChanged)
+  }, [eventName, eventDateInput, eventTimeInput, matchFormat, currentSet, selectedCourts, eventPlayers, originalSettings, originalCourtIds, originalPlayerIds])
 
   async function fetchEvent() {
     try {
@@ -195,6 +257,17 @@ export default function EventDetailPage() {
       }
       if (data.event.total_sets) {
         setCurrentSet(data.event.total_sets)
+      }
+      
+      // Store original settings for change detection (only if not already set)
+      if (!originalSettings) {
+        setOriginalSettings({
+          name: data.event.name || '',
+          date: data.event.event_date || '',
+          time: data.event.start_time || '',
+          format: (data.event.match_format as 'Same-Sex' | 'Mixed') || 'Same-Sex',
+          sets: data.event.total_sets || 1
+        })
       }
       
       return data.event
@@ -256,6 +329,11 @@ export default function EventDetailPage() {
       const response = await fetch(`/api/events/${eventId}/courts`)
       const data = await response.json()
       setSelectedCourts(data.courts || [])
+      
+      // Store original court IDs for change detection (only if not already set)
+      if (originalCourtIds.length === 0 && data.courts && data.courts.length > 0) {
+        setOriginalCourtIds(data.courts.map((c: SelectedCourt) => c.court_id))
+      }
     } catch (error) {
       console.error('Error fetching selected courts:', error)
     }
@@ -296,6 +374,10 @@ export default function EventDetailPage() {
         body: JSON.stringify({ courts: selectedCourts }),
       })
       if (!response.ok) throw new Error('Failed to save courts')
+      
+      // Update event status after saving courts
+      await updateEventStatus()
+      
       setCurrentStep('players')
     } catch (error) {
       console.error('Error saving courts:', error)
@@ -321,6 +403,11 @@ export default function EventDetailPage() {
       const response = await fetch(`/api/events/${eventId}/players`)
       const data = await response.json()
       setEventPlayers(data.players || [])
+      
+      // Store original player IDs for change detection (only if not already set)
+      if (originalPlayerIds.length === 0 && data.players && data.players.length > 0) {
+        setOriginalPlayerIds(data.players.map((p: EventPlayer) => p.player_id))
+      }
     } catch (error) {
       console.error('Error fetching event players:', error)
     }
@@ -431,6 +518,9 @@ export default function EventDetailPage() {
         setMatchesBySet(matchesData.matchesBySet || {})
       }
       
+      // Update event status after saving players
+      await updateEventStatus()
+      
       // Navigate to matches step
       setCurrentStep('matches')
     } catch (error) {
@@ -439,6 +529,38 @@ export default function EventDetailPage() {
     } finally {
       setSaving(false)
       setGenerating(false)
+    }
+  }
+
+  // Navigate to matches without regenerating (when no changes detected)
+  function goToMatches() {
+    setCurrentStep('matches')
+  }
+
+  // Helper function to update event status based on completion
+  async function updateEventStatus() {
+    try {
+      // Fetch current courts and players to check if event is complete
+      const courtsResponse = await fetch(`/api/events/${eventId}/courts`)
+      const courtsData = await courtsResponse.json()
+      const hasCourts = courtsData.courts && courtsData.courts.length > 0
+
+      const playersResponse = await fetch(`/api/events/${eventId}/players`)
+      const playersData = await playersResponse.json()
+      const hasPlayers = playersData.players && playersData.players.length > 0
+
+      // Determine status: 'upcoming' if both courts and players are set, otherwise 'draft'
+      const status = (hasCourts && hasPlayers) ? 'upcoming' : 'draft'
+
+      // Update the event status
+      await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+    } catch (error) {
+      console.error('Error updating event status:', error)
+      // Don't throw - this is a background update
     }
   }
 
@@ -477,6 +599,28 @@ export default function EventDetailPage() {
     }
   }
 
+  async function deleteEvent() {
+    if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'DELETE',
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete event')
+      }
+      
+      // Redirect to events list page
+      window.location.href = '/'
+    } catch (err) {
+      console.error('Error deleting event:', err)
+      alert(err instanceof Error ? err.message : 'Failed to delete event')
+    }
+  }
+
   const availableCourts = allCourts.filter(c => !isCourtSelected(c.id))
   const filteredPlayers = allPlayers.filter(p => {
     if (!searchTerm) return true
@@ -493,7 +637,7 @@ export default function EventDetailPage() {
   const isCourtsComplete = selectedCourts.length > 0
   const isPlayersComplete = eventPlayers.length > 0
 
-  if (loading) {
+  if (loading || !initialStepSet) {
     return (
       <main className="min-h-screen p-8">
         <div className="max-w-7xl mx-auto">
@@ -545,28 +689,27 @@ export default function EventDetailPage() {
 
         {/* Progress Steps - Hidden on matches step */}
         {currentStep !== 'matches' && (
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-          <div className="flex items-start justify-between max-w-4xl mx-auto relative">
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-4 mx-auto" style={{maxWidth: '800px'}}>
+          <div className="flex items-start justify-between mx-auto relative" style={{maxWidth: '1220px'}}>
             {/* Settings */}
             <div className="flex flex-col items-center flex-1 relative">
               <button
                 onClick={() => setCurrentStep('settings')}
                 className={`flex flex-col items-center gap-1 relative z-10 ${currentStep === 'settings' ? '' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`rounded-full flex items-center justify-center font-semibold ${
+                <div className={`rounded-full flex items-center justify-center font-semibold w-7 h-7 text-xs ${
                   currentStep === 'settings'
-                    ? 'w-10 h-10 text-sm border-4 border-indigo-600 bg-indigo-600 text-white shadow-lg'
+                    ? 'border-2 border-indigo-600 bg-indigo-600 text-white shadow-lg'
                     : isSettingsComplete
-                    ? 'w-7 h-7 text-xs border-2 border-green-400 bg-green-400 text-white'
-                    : 'w-7 h-7 text-xs border-2 border-gray-300 bg-white text-gray-600'
+                    ? 'border-2 border-green-200 bg-green-50 text-green-600'
+                    : 'border-2 border-gray-300 bg-white text-gray-600'
                 }`}>
                   {isSettingsComplete && currentStep !== 'settings' ? <Check className="w-4 h-4" /> : '1'}
                 </div>
                 <div className="text-center">
                   <div className={`text-sm font-semibold ${currentStep === 'settings' ? 'text-gray-900' : 'text-gray-700'}`}>
-                    Game settings
+                    Step 1: Game
                   </div>
-                  <div className="text-xs text-gray-500">{currentSet} set</div>
                 </div>
               </button>
             </div>
@@ -578,20 +721,19 @@ export default function EventDetailPage() {
                 disabled={!isSettingsComplete}
                 className={`flex flex-col items-center gap-1 relative z-10 ${!isSettingsComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`rounded-full flex items-center justify-center font-semibold ${
+                <div className={`rounded-full flex items-center justify-center font-semibold w-7 h-7 text-xs ${
                   currentStep === 'courts'
-                    ? 'w-10 h-10 text-sm border-4 border-indigo-600 bg-indigo-600 text-white shadow-lg'
+                    ? 'border-2 border-indigo-600 bg-indigo-600 text-white shadow-lg'
                     : isCourtsComplete
-                    ? 'w-7 h-7 text-xs border-2 border-green-400 bg-green-400 text-white'
-                    : 'w-7 h-7 text-xs border-2 border-gray-300 bg-white text-gray-600'
+                    ? 'border-2 border-green-200 bg-green-50 text-green-600'
+                    : 'border-2 border-gray-300 bg-white text-gray-600'
                 }`}>
                   {isCourtsComplete && currentStep !== 'courts' ? <Check className="w-4 h-4" /> : '2'}
                 </div>
                 <div className="text-center">
                   <div className={`text-sm font-semibold ${currentStep === 'courts' ? 'text-gray-900' : 'text-gray-700'}`}>
-                    Choose courts
+                    Step 2: Courts
                   </div>
-                  <div className="text-xs text-gray-500">{selectedCourts.length} selected</div>
                 </div>
               </button>
             </div>
@@ -603,20 +745,19 @@ export default function EventDetailPage() {
                 disabled={!isCourtsComplete}
                 className={`flex flex-col items-center gap-1 relative z-10 ${!isCourtsComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`rounded-full flex items-center justify-center font-semibold ${
+                <div className={`rounded-full flex items-center justify-center font-semibold w-7 h-7 text-xs ${
                   currentStep === 'players'
-                    ? 'w-10 h-10 text-sm border-4 border-indigo-600 bg-indigo-600 text-white shadow-lg'
+                    ? 'border-2 border-indigo-600 bg-indigo-600 text-white shadow-lg'
                     : isPlayersComplete
-                    ? 'w-7 h-7 text-xs border-2 border-green-400 bg-green-400 text-white'
-                    : 'w-7 h-7 text-xs border-2 border-gray-300 bg-white text-gray-600'
+                    ? 'border-2 border-green-200 bg-green-50 text-green-600'
+                    : 'border-2 border-gray-300 bg-white text-gray-600'
                 }`}>
                   {isPlayersComplete && currentStep !== 'players' ? <Check className="w-4 h-4" /> : '3'}
                 </div>
                 <div className="text-center">
                   <div className={`text-sm font-semibold ${currentStep === 'players' ? 'text-gray-900' : 'text-gray-700'}`}>
-                    Choose players
+                    Step 3: Players
                   </div>
-                  <div className="text-xs text-gray-500">{eventPlayers.length} selected</div>
                 </div>
               </button>
             </div>
@@ -634,11 +775,11 @@ export default function EventDetailPage() {
         )}
 
         {/* Content Area */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="bg-white rounded-xl shadow-sm p-6 mx-auto" style={{maxWidth: '800px'}}>
 
           {/* SETTINGS STEP */}
           {currentStep === 'settings' && (
-            <div className="mx-auto pb-24" style={{maxWidth: '960px'}}>
+            <div className="mx-auto pb-6" style={{maxWidth: '1220px'}}>
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Step 1: Game settings</h2>
               </div>
@@ -755,7 +896,7 @@ export default function EventDetailPage() {
                 <h2 className="text-2xl font-bold text-gray-900">Step 2: Choose courts</h2>
               </div>
 
-              <div className="mx-auto" style={{maxWidth: '960px'}}>
+              <div className="mx-auto" style={{maxWidth: '1220px'}}>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-sm font-medium text-gray-700">
                     {selectedCourts.length} court{selectedCourts.length !== 1 ? 's' : ''} selected
@@ -861,7 +1002,7 @@ export default function EventDetailPage() {
                 <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between">
                   <button
                     onClick={() => setCurrentStep('settings')}
-                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium no-underline flex items-center gap-2"
+                    className="px-6 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition font-medium no-underline flex items-center gap-2"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
@@ -894,7 +1035,7 @@ export default function EventDetailPage() {
                 <h2 className="text-2xl font-bold text-gray-900">Step 3: Choose players</h2>
               </div>
 
-              <div className="mx-auto" style={{maxWidth: '960px'}}>
+              <div className="mx-auto" style={{maxWidth: '1220px'}}>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-sm font-medium text-gray-700">
                     {eventPlayers.length} player{eventPlayers.length !== 1 ? 's' : ''} selected
@@ -993,27 +1134,44 @@ export default function EventDetailPage() {
                 <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between">
                   <button
                     onClick={() => setCurrentStep('courts')}
-                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium no-underline flex items-center gap-2"
+                    className="px-6 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition font-medium no-underline flex items-center gap-2"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
                   </button>
-                  <button
-                    onClick={savePlayers}
-                    disabled={eventPlayers.length === 0 || saving || generating}
-                    className={`px-8 py-3 rounded-xl font-semibold transition flex items-center gap-2 ${
-                      eventPlayers.length > 0 && !saving && !generating
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    {saving || generating ? 'Generating matches...' : (
-                      <>
-                        Make matches
+                  <div className="flex gap-3">
+                    {hasChanges ? (
+                      <button
+                        onClick={savePlayers}
+                        disabled={eventPlayers.length === 0 || saving || generating}
+                        className={`px-8 py-3 rounded-xl font-semibold transition flex items-center gap-2 ${
+                          eventPlayers.length > 0 && !saving && !generating
+                            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        {saving || generating ? 'Generating matches...' : (
+                          <>
+                            {originalSettings ? 'Regenerate matches' : 'Make matches'}
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={goToMatches}
+                        disabled={eventPlayers.length === 0}
+                        className={`px-8 py-3 rounded-xl font-semibold transition flex items-center gap-2 ${
+                          eventPlayers.length > 0
+                            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        Next
                         <ArrowRight className="w-4 h-4" />
-                      </>
+                      </button>
                     )}
-                  </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1022,11 +1180,82 @@ export default function EventDetailPage() {
           {/* MATCHES STEP */}
           {currentStep === 'matches' && (
             <div className="pb-24">
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Your Matches</h2>
+              <div className="flex items-center justify-between mb-6 mx-auto" style={{maxWidth: '1220px'}}>
+                <h2 className="text-2xl font-bold text-gray-900">Game on!</h2>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowMatchesMenu(!showMatchesMenu)}
+                    className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                    </svg>
+                  </button>
+                  {showMatchesMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                      <button
+                        onClick={() => {
+                          setShowMatchesMenu(false)
+                          generateMatches()
+                        }}
+                        disabled={generating}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+                      >
+                        {generating ? 'Regenerating...' : 'Regenerate matches'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowMatchesMenu(false)
+                          setCurrentStep('players')
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition"
+                      >
+                        Change players
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowMatchesMenu(false)
+                          setCurrentStep('courts')
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition"
+                      >
+                        Change courts
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowMatchesMenu(false)
+                          // TODO: Implement share functionality
+                          alert('Share functionality coming soon!')
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition"
+                      >
+                        Share matches
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowMatchesMenu(false)
+                          setCurrentStep('settings')
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition"
+                      >
+                        Reset event
+                      </button>
+                      <div className="border-t border-gray-200 my-1"></div>
+                      <button
+                        onClick={() => {
+                          setShowMatchesMenu(false)
+                          deleteEvent()
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition"
+                      >
+                        Delete event
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="mx-auto" style={{maxWidth: '960px'}}>
+              <div className="mx-auto" style={{maxWidth: '1220px'}}>
               {Object.keys(matchesBySet).length === 0 ? (
                 <div className="text-center py-12">
                   <ClipboardList className="w-16 h-16 mx-auto text-gray-400 mb-4" />
@@ -1080,7 +1309,7 @@ export default function EventDetailPage() {
                               {/* Team 1 */}
                               <div className="space-y-1.5">
                                 {match.team1.map((player) => {
-                                  const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(player.name)}`
+                                  const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent('tennis player')}`
                                   return (
                                     <div key={player.id} className="flex items-center gap-2">
                                       <img 
@@ -1107,7 +1336,7 @@ export default function EventDetailPage() {
                               {/* Team 2 */}
                               <div className="space-y-1.5">
                                 {match.team2.map((player) => {
-                                  const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(player.name)}`
+                                  const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent('tennis player')}`
                                   return (
                                     <div key={player.id} className="flex items-center gap-2">
                                       <img 
@@ -1141,31 +1370,19 @@ export default function EventDetailPage() {
               )}
               </div>
 
-              {/* Sticky Footer with Back, Regenerate, and Save Buttons */}
+              {/* Sticky Footer with Back and Save Buttons */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
                 <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between items-center">
-                  <div className="flex gap-6">
-                    <button
-                      onClick={() => setCurrentStep('settings')}
-                      className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium no-underline"
-                    >
-                      Start over
-                    </button>
-                    <button
-                      onClick={generateMatches}
-                      disabled={generating}
-                      className={`px-6 py-3 text-gray-700 font-medium transition no-underline ${
-                        generating
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'hover:text-gray-900'
-                      }`}
-                    >
-                      {generating ? 'Regenerating...' : 'Regenerate matches'}
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setCurrentStep('players')}
+                    className="px-6 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition font-medium no-underline flex items-center gap-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back
+                  </button>
                   <Link
                     href="/"
-                    className="inline-block px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition font-semibold no-underline"
+                    className="inline-block px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 hover:text-white transition font-semibold no-underline"
                   >
                     Save
                   </Link>

@@ -16,7 +16,8 @@ export async function GET() {
       .from('events')
       .select(`
         *,
-        event_players(count)
+        event_players(count),
+        event_courts(count)
       `)
       .order('event_date', { ascending: false })
 
@@ -25,11 +26,13 @@ export async function GET() {
       throw error
     }
 
-    // Transform the data to include player_count
+    // Transform the data to include player_count and court_count
     const eventsWithCount = events?.map(event => ({
       ...event,
       player_count: event.event_players?.[0]?.count || 0,
+      court_count: event.event_courts?.[0]?.count || 0,
       event_players: undefined, // Remove the nested object
+      event_courts: undefined, // Remove the nested object
     }))
 
     return NextResponse.json({ events: eventsWithCount })

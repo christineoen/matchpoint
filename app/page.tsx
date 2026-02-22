@@ -85,6 +85,8 @@ function HomeContent() {
     grade: 3,
     nhc: false,
     plus_minus: '' as '' | '+' | '-',
+    avatarSeed: 'tennis player',
+    is_active: true,
   })
   
   // Store custom player data (avatar seeds)
@@ -119,7 +121,10 @@ function HomeContent() {
   const courtSearchRef = useRef<HTMLDivElement>(null)
   const [courtForm, setCourtForm] = useState({
     name: '',
+    number: '',
     surface_type: 'hard' as 'hard' | 'grass',
+    status: 'available' as 'available' | 'maintenance' | 'unavailable',
+    days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as string[],
   })
   
   // Store custom court data (names, numbers, days)
@@ -225,6 +230,48 @@ function HomeContent() {
     }
   }
 
+  // Helper function to convert court name to display name
+  const getCourtDisplayNameFromString = (courtName: string) => {
+    const courtNames = [
+      'Center Court',
+      'North Court',
+      'South Court',
+      'East Court',
+      'West Court',
+      'Championship Court',
+      'Stadium Court',
+      'Grandstand Court',
+      'Court One',
+      'Court Two',
+      'Court Three',
+      'Court Four',
+      'Court Five',
+      'Court Six',
+      'Practice Court A',
+      'Practice Court B',
+      'Riverside Court',
+      'Sunset Court',
+      'Garden Court',
+      'Pavilion Court'
+    ]
+    
+    // Check if name is just a number (e.g., "1", "2", "3")
+    const courtNum = parseInt(courtName)
+    if (!isNaN(courtNum) && courtNum > 0 && courtName === courtNum.toString()) {
+      return courtNames[courtNum - 1] || `Court ${courtNum}`
+    }
+    
+    // Check if name is in format like "H1", "H2", "G1", "G2"
+    const match = courtName.match(/^([HGhg])(\d+)$/)
+    if (match) {
+      const num = parseInt(match[2])
+      return courtNames[num - 1] || `Court ${num}`
+    }
+    
+    // If name doesn't match patterns, use it as-is
+    return courtName
+  }
+
   async function createNewEvent() {
     setCreatingEvent(true)
     setEventError(null)
@@ -289,6 +336,8 @@ function HomeContent() {
         grade: 3,
         nhc: false,
         plus_minus: '',
+        avatarSeed: 'tennis player',
+        is_active: true,
       })
       setShowPlayerForm(false)
       fetchPlayers()
@@ -310,7 +359,10 @@ function HomeContent() {
 
       setCourtForm({
         name: '',
+        number: '',
         surface_type: 'hard',
+        status: 'available',
+        days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       })
       setShowCourtForm(false)
       fetchCourts()
@@ -666,7 +718,7 @@ function HomeContent() {
 
   // Get player avatar seed (custom or default)
   const getPlayerAvatarSeed = (playerId: string, playerName: string) => {
-    return playerCustomData[playerId]?.avatarSeed ?? playerName
+    return playerCustomData[playerId]?.avatarSeed || 'tennis player'
   }
 
   // Trigger animation when drawer opens
@@ -877,30 +929,6 @@ function HomeContent() {
                       </th>
                       <th 
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
-                        onClick={() => handleEventSort('total_sets')}
-                      >
-                        <div className="flex items-center gap-2">
-                          Sets
-                          <span className={eventSortField === 'total_sets' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
-                            <EventSortIcon field="total_sets" />
-                            {eventSortField !== 'total_sets' && <ChevronUp className="w-4 h-4 text-gray-400" />}
-                          </span>
-                        </div>
-                      </th>
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
-                        onClick={() => handleEventSort('player_count')}
-                      >
-                        <div className="flex items-center gap-2">
-                          Players
-                          <span className={eventSortField === 'player_count' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
-                            <EventSortIcon field="player_count" />
-                            {eventSortField !== 'player_count' && <ChevronUp className="w-4 h-4 text-gray-400" />}
-                          </span>
-                        </div>
-                      </th>
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
                         onClick={() => handleEventSort('status')}
                       >
                         <div className="flex items-center gap-2">
@@ -934,19 +962,24 @@ function HomeContent() {
                       return (
                         <tr key={event.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4">
-                            <button
-                              onClick={async () => {
-                                setSelectedEvent(event)
-                                setEventDrawerTab('matches')
-                                setCollapsedSets(new Set())
-                                setEventDrawerData(null) // Clear old data
-                                setShowEventDrawer(true)
-                                await fetchEventDetails(event.id)
-                              }}
-                              className="text-sm font-medium text-gray-900 hover:text-blue-600 transition underline text-left"
-                            >
-                              {event.name}
-                            </button>
+                            <div>
+                              <button
+                                onClick={async () => {
+                                  setSelectedEvent(event)
+                                  setEventDrawerTab('matches')
+                                  setCollapsedSets(new Set())
+                                  setEventDrawerData(null) // Clear old data
+                                  setShowEventDrawer(true)
+                                  await fetchEventDetails(event.id)
+                                }}
+                                className="text-sm font-medium text-gray-900 hover:text-blue-600 transition underline text-left"
+                              >
+                                {event.name}
+                              </button>
+                              <div className="text-xs text-gray-400">
+                                {event.total_sets} {event.total_sets === 1 ? 'set' : 'sets'} · {(event as any).player_count || 0} {(event as any).player_count === 1 ? 'player' : 'players'} · {(event as any).court_count || 0} {(event as any).court_count === 1 ? 'court' : 'courts'}
+                              </div>
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-600">{formattedDate}</div>
@@ -959,12 +992,6 @@ function HomeContent() {
                                 hour12: true 
                               }) : '-'}
                             </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-gray-600">{event.total_sets}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-gray-600">{(event as any).player_count || 0}</div>
                           </td>
                           <td className="px-6 py-4">
                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
@@ -1015,12 +1042,24 @@ function HomeContent() {
                   <div className="flex w-44">
                     <button
                       onClick={() => {
-                        setShowPlayerForm(!showPlayerForm)
+                        setShowPlayerDrawer(true)
+                        setSelectedPlayer(null)
+                        setPlayerEditData({
+                          name: '',
+                          email: '',
+                          phone: '',
+                          gender: 'M',
+                          grade: 3,
+                          nhc: false,
+                          plus_minus: '',
+                          avatarSeed: 'tennis player',
+                          is_active: true,
+                        })
                         setShowPlayerDropdown(false)
                       }}
                       className="bg-primary text-white px-6 py-3 rounded-l-lg hover:bg-blue-700 transition font-semibold flex-1"
                     >
-                      {showPlayerForm ? 'Cancel' : 'Add player'}
+                      Add player
                     </button>
                     <button
                       onClick={() => setShowPlayerDropdown(!showPlayerDropdown)}
@@ -1046,57 +1085,6 @@ function HomeContent() {
               </div>
             </div>
 
-            {showPlayerForm && (
-              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-                <h2 className="text-xl font-bold mb-4">Add new player</h2>
-                <form onSubmit={handlePlayerSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                    <input type="text" required value={playerForm.name} onChange={(e) => setPlayerForm({ ...playerForm, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input type="email" value={playerForm.email} onChange={(e) => setPlayerForm({ ...playerForm, email: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                    <input type="tel" value={playerForm.phone} onChange={(e) => setPlayerForm({ ...playerForm, phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
-                    <select value={playerForm.gender} onChange={(e) => setPlayerForm({ ...playerForm, gender: e.target.value as 'M' | 'F' })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
-                      <option value="M">Male</option>
-                      <option value="F">Female</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Grade *</label>
-                    <select value={playerForm.grade} onChange={(e) => setPlayerForm({ ...playerForm, grade: parseInt(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
-                      <option value={1}>Grade 3A</option>
-                      <option value={2}>Grade 3</option>
-                      <option value={3}>Grade 2B</option>
-                      <option value={4}>Grade 2A</option>
-                      <option value={5}>Grade 2</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Plus/Minus</label>
-                    <select value={playerForm.plus_minus} onChange={(e) => setPlayerForm({ ...playerForm, plus_minus: e.target.value as '' | '+' | '-' })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
-                      <option value="">None</option>
-                      <option value="+">+</option>
-                      <option value="-">-</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center">
-                    <input type="checkbox" id="nhc" checked={playerForm.nhc} onChange={(e) => setPlayerForm({ ...playerForm, nhc: e.target.checked })} className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded" />
-                    <label htmlFor="nhc" className="ml-2 text-sm text-gray-700">NHC (New/Hasn't Competed)</label>
-                  </div>
-                  <div className="md:col-span-2">
-                    <button type="submit" className="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">Add player</button>
-                  </div>
-                </form>
-              </div>
-            )}
 
             {players.length === 0 ? (
               <div className="bg-white rounded-lg shadow-md p-12 text-center">
@@ -1239,12 +1227,20 @@ function HomeContent() {
                   <div className="flex w-44">
                     <button
                       onClick={() => {
-                        setShowCourtForm(!showCourtForm)
+                        setShowCourtDrawer(true)
+                        setSelectedCourt(null)
+                        setCourtEditData({
+                          name: '',
+                          number: '',
+                          surface_type: 'hard',
+                          days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                          status: 'available',
+                        })
                         setShowCourtDropdown(false)
                       }}
                       className="bg-primary text-white px-6 py-3 rounded-l-lg hover:bg-blue-700 transition font-semibold flex-1"
                     >
-                      {showCourtForm ? 'Cancel' : 'Add court'}
+                      Add court
                     </button>
                     <button
                       onClick={() => setShowCourtDropdown(!showCourtDropdown)}
@@ -1276,22 +1272,149 @@ function HomeContent() {
                 <form onSubmit={handleCourtSubmit} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Court Name *</label>
-                    <input type="text" required placeholder="e.g., Court 1, Center Court" value={courtForm.name} onChange={(e) => setCourtForm({ ...courtForm, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent" />
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="e.g., Court 1, Center Court" 
+                      value={courtForm.name} 
+                      onChange={(e) => setCourtForm({ ...courtForm, name: e.target.value })} 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent" 
+                    />
                   </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Court Number</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g., 1, H1, G1" 
+                      value={courtForm.number} 
+                      onChange={(e) => setCourtForm({ ...courtForm, number: e.target.value.slice(0, 5) })} 
+                      maxLength={5}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent" 
+                    />
+                  </div>
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Surface Type *</label>
                     <div className="flex gap-4">
                       <label className="flex items-center">
-                        <input type="radio" value="hard" checked={courtForm.surface_type === 'hard'} onChange={(e) => setCourtForm({ ...courtForm, surface_type: e.target.value as 'hard' | 'grass' })} className="h-4 w-4 text-primary focus:ring-primary border-gray-300" />
+                        <input 
+                          type="radio" 
+                          value="hard" 
+                          checked={courtForm.surface_type === 'hard'} 
+                          onChange={(e) => setCourtForm({ ...courtForm, surface_type: e.target.value as 'hard' | 'grass' })} 
+                          className="h-4 w-4 text-primary focus:ring-primary border-gray-300" 
+                        />
                         <span className="ml-2 text-sm text-gray-700">Hard Court</span>
                       </label>
                       <label className="flex items-center">
-                        <input type="radio" value="grass" checked={courtForm.surface_type === 'grass'} onChange={(e) => setCourtForm({ ...courtForm, surface_type: e.target.value as 'hard' | 'grass' })} className="h-4 w-4 text-primary focus:ring-primary border-gray-300" />
+                        <input 
+                          type="radio" 
+                          value="grass" 
+                          checked={courtForm.surface_type === 'grass'} 
+                          onChange={(e) => setCourtForm({ ...courtForm, surface_type: e.target.value as 'hard' | 'grass' })} 
+                          className="h-4 w-4 text-primary focus:ring-primary border-gray-300" 
+                        />
                         <span className="ml-2 text-sm text-gray-700">Grass Court</span>
                       </label>
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">Add court</button>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCourtForm({ ...courtForm, status: 'available' })}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition border-2 ${
+                          courtForm.status === 'available'
+                            ? 'bg-green-50 text-green-700 border-green-300'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        Available
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCourtForm({ ...courtForm, status: 'maintenance' })}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition border-2 ${
+                          courtForm.status === 'maintenance'
+                            ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        Maintenance
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCourtForm({ ...courtForm, status: 'unavailable' })}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition border-2 ${
+                          courtForm.status === 'unavailable'
+                            ? 'bg-red-50 text-red-700 border-red-300'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        Unavailable
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Available Days {courtForm.status !== 'available' && <span className="text-gray-400 text-xs">(disabled when not available)</span>}
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { full: 'Monday', short: 'Mon' },
+                        { full: 'Tuesday', short: 'Tue' },
+                        { full: 'Wednesday', short: 'Wed' },
+                        { full: 'Thursday', short: 'Thu' },
+                        { full: 'Friday', short: 'Fri' },
+                        { full: 'Saturday', short: 'Sat' },
+                        { full: 'Sunday', short: 'Sun' }
+                      ].map(day => {
+                        const isSelected = courtForm.days.includes(day.short)
+                        const isDisabled = courtForm.status !== 'available'
+                        
+                        return (
+                          <button
+                            key={day.short}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => {
+                              if (isSelected) {
+                                setCourtForm({
+                                  ...courtForm,
+                                  days: courtForm.days.filter(d => d !== day.short)
+                                })
+                              } else {
+                                setCourtForm({
+                                  ...courtForm,
+                                  days: [...courtForm.days, day.short].sort((a, b) => {
+                                    const order = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                                    return order.indexOf(a) - order.indexOf(b)
+                                  })
+                                })
+                              }
+                            }}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition border-2 ${
+                              isDisabled
+                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                : isSelected
+                                ? 'bg-blue-50 text-blue-700 border-blue-300'
+                                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            {day.short}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  
+                  <button type="submit" className="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">
+                    Add court
+                  </button>
                 </form>
               </div>
             )}
@@ -1318,18 +1441,6 @@ function HomeContent() {
                           <span className={courtSortField === 'name' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
                             <CourtSortIcon field="name" />
                             {courtSortField !== 'name' && <ChevronUp className="w-4 h-4 text-gray-400" />}
-                          </span>
-                        </div>
-                      </th>
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
-                        onClick={() => handleCourtSort('number')}
-                      >
-                        <div className="flex items-center gap-2">
-                          Number
-                          <span className={courtSortField === 'number' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
-                            <CourtSortIcon field="number" />
-                            {courtSortField !== 'number' && <ChevronUp className="w-4 h-4 text-gray-400" />}
                           </span>
                         </div>
                       </th>
@@ -1398,9 +1509,6 @@ function HomeContent() {
                             >
                               {courtName}
                             </button>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-gray-600">{courtNumber}</div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-600">
@@ -1566,8 +1674,7 @@ function HomeContent() {
       )}
 
       {/* Court Profile Drawer */}
-      {/* Court Profile Drawer */}
-      {showCourtDrawer && selectedCourt && courtEditData && (
+      {showCourtDrawer && (
         <>
           <div 
             className={`fixed inset-0 bg-black z-40 transition-opacity duration-300 ${
@@ -1580,7 +1687,7 @@ function HomeContent() {
           }`}>
             <div className="flex-1 overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Court profile</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{selectedCourt ? 'Court profile' : 'Add new court'}</h2>
                 <button
                   onClick={handleCloseDrawer}
                   className="text-gray-400 hover:text-gray-600 transition"
@@ -1591,48 +1698,17 @@ function HomeContent() {
                 </button>
               </div>
 
-              <form className="space-y-5 pb-6" onSubmit={(e) => {
-                e.preventDefault()
-                // Save changes to courtCustomData
-                setCourtCustomData(prev => ({
-                  ...prev,
-                  [selectedCourt.id]: {
-                    name: courtEditData.name,
-                    number: courtEditData.number,
-                    days: courtEditData.days,
-                    status: courtEditData.status
-                  }
-                }))
-                
-                // Update the court surface type in the courts array
-                setCourts(prev => prev.map(c => 
-                  c.id === selectedCourt.id 
-                    ? { ...c, surface_type: courtEditData.surface_type }
-                    : c
-                ))
-                
-                handleCloseDrawer()
-              }}>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                  <input
-                    type="text"
-                    value={courtEditData.name}
-                    onChange={(e) => setCourtEditData({ ...courtEditData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Number</label>
-                  <input
-                    type="text"
-                    value={courtEditData.number}
-                    onChange={(e) => setCourtEditData({ ...courtEditData, number: e.target.value.slice(0, 5) })}
-                    maxLength={5}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  />
-                </div>
+              {courtEditData && (
+                <form className="space-y-5 pb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                    <input
+                      type="text"
+                      value={courtEditData.name}
+                      onChange={(e) => setCourtEditData({ ...courtEditData, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    />
+                  </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
@@ -1794,6 +1870,7 @@ function HomeContent() {
                   </div>
                 </div>
               </form>
+              )}
             </div>
 
             {/* Sticky Footer */}
@@ -1808,31 +1885,58 @@ function HomeContent() {
                 </button>
                 <button
                   type="submit"
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.preventDefault()
-                    // Save changes to courtCustomData
-                    setCourtCustomData(prev => ({
-                      ...prev,
-                      [selectedCourt.id]: {
-                        name: courtEditData.name,
-                        number: courtEditData.number,
-                        days: courtEditData.days,
-                        status: courtEditData.status
+                    
+                    if (!courtEditData) return
+                    
+                    if (selectedCourt) {
+                      // Edit mode: Save changes to courtCustomData
+                      setCourtCustomData(prev => ({
+                        ...prev,
+                        [selectedCourt.id]: {
+                          name: courtEditData.name,
+                          number: courtEditData.number,
+                          days: courtEditData.days,
+                          status: courtEditData.status
+                        }
+                      }))
+                      
+                      // Update the court surface type in the courts array
+                      setCourts(prev => prev.map(c => 
+                        c.id === selectedCourt.id 
+                          ? { ...c, surface_type: courtEditData.surface_type }
+                          : c
+                      ))
+                      
+                      handleCloseDrawer()
+                    } else {
+                      // Add mode: Create new court via API
+                      try {
+                        const response = await fetch('/api/courts', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            name: courtEditData.name,
+                            number: courtEditData.number,
+                            surface_type: courtEditData.surface_type,
+                            status: courtEditData.status,
+                            days: courtEditData.days,
+                          }),
+                        })
+
+                        if (!response.ok) throw new Error('Failed to create court')
+
+                        handleCloseDrawer()
+                        fetchCourts()
+                      } catch (error) {
+                        alert('Failed to create court')
                       }
-                    }))
-                    
-                    // Update the court surface type in the courts array
-                    setCourts(prev => prev.map(c => 
-                      c.id === selectedCourt.id 
-                        ? { ...c, surface_type: courtEditData.surface_type }
-                        : c
-                    ))
-                    
-                    handleCloseDrawer()
+                    }
                   }}
                   className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm"
                 >
-                  Save changes
+                  {selectedCourt ? 'Save changes' : 'Add court'}
                 </button>
               </div>
             </div>
@@ -1841,7 +1945,7 @@ function HomeContent() {
       )}
 
       {/* Player Profile Drawer */}
-      {showPlayerDrawer && selectedPlayer && playerEditData && (
+      {showPlayerDrawer && (
         <>
           <div 
             className={`fixed inset-0 bg-black z-40 transition-opacity duration-300 ${
@@ -1854,7 +1958,7 @@ function HomeContent() {
           }`}>
             <div className="flex-1 overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Player profile</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{selectedPlayer ? 'Player profile' : 'Add new player'}</h2>
                 <button
                   onClick={handleClosePlayerDrawer}
                   className="text-gray-400 hover:text-gray-600 transition"
@@ -1865,44 +1969,66 @@ function HomeContent() {
                 </button>
               </div>
 
-              <form className="space-y-5 pb-6" onSubmit={(e) => {
-                e.preventDefault()
-                // Save changes
-                setPlayerCustomData(prev => ({
-                  ...prev,
-                  [selectedPlayer.id]: {
-                    avatarSeed: playerEditData.avatarSeed
-                  }
-                }))
-                
-                // Update the player in the players array
-                setPlayers(prev => prev.map(p => 
-                  p.id === selectedPlayer.id 
-                    ? { 
-                        ...p, 
-                        name: playerEditData.name,
-                        email: playerEditData.email,
-                        phone: playerEditData.phone,
-                        gender: playerEditData.gender,
-                        grade: playerEditData.grade,
-                        nhc: playerEditData.nhc,
-                        plus_minus: playerEditData.plus_minus || null,
-                        is_active: playerEditData.is_active
+              {playerEditData && (
+                <form className="space-y-5 pb-6" onSubmit={async (e) => {
+                  e.preventDefault()
+                  
+                  if (selectedPlayer) {
+                    // Edit mode - update existing player
+                    setPlayerCustomData(prev => ({
+                      ...prev,
+                      [selectedPlayer.id]: {
+                        avatarSeed: playerEditData.avatarSeed
                       }
-                    : p
-                ))
-                
-                handleClosePlayerDrawer()
-              }}>
-                {/* Profile Picture */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Profile picture</label>
-                  <div className="flex items-center gap-4">
-                    <img 
-                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(playerEditData.avatarSeed)}`}
-                      alt="Avatar preview"
-                      className="w-16 h-16 rounded-full"
-                    />
+                    }))
+                    
+                    setPlayers(prev => prev.map(p => 
+                      p.id === selectedPlayer.id 
+                        ? { 
+                            ...p, 
+                            name: playerEditData.name,
+                            email: playerEditData.email,
+                            phone: playerEditData.phone,
+                            gender: playerEditData.gender,
+                            grade: playerEditData.grade,
+                            nhc: playerEditData.nhc,
+                            plus_minus: playerEditData.plus_minus || null,
+                            is_active: playerEditData.is_active
+                          }
+                        : p
+                    ))
+                    
+                    handleClosePlayerDrawer()
+                  } else {
+                    // Add mode - create new player
+                    try {
+                      const response = await fetch('/api/players', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          ...playerEditData,
+                          plus_minus: playerEditData.plus_minus || null,
+                        }),
+                      })
+
+                      if (!response.ok) throw new Error('Failed to create player')
+
+                      await fetchPlayers()
+                      handleClosePlayerDrawer()
+                    } catch (error) {
+                      alert('Failed to create player')
+                    }
+                  }
+                }}>
+                  {/* Profile Picture */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Profile picture</label>
+                    <div className="flex items-center gap-4">
+                      <img 
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(playerEditData.avatarSeed)}`}
+                        alt="Avatar preview"
+                        className="w-16 h-16 rounded-full"
+                      />
                     <div className="flex-1">
                       <input
                         type="text"
@@ -2043,6 +2169,7 @@ function HomeContent() {
                   </label>
                 </div>
               </form>
+              )}
             </div>
 
             {/* Sticky Footer */}
@@ -2057,21 +2184,45 @@ function HomeContent() {
                 </button>
                 <button
                   type="submit"
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.preventDefault()
-                    // Save changes
-                    setPlayerCustomData(prev => ({
-                      ...prev,
-                      [selectedPlayer.id]: {
-                        avatarSeed: playerEditData.avatarSeed
-                      }
-                    }))
                     
-                    // Update the player in the players array
-                    setPlayers(prev => prev.map(p => 
-                      p.id === selectedPlayer.id 
-                        ? { 
-                            ...p, 
+                    if (!playerEditData) return
+                    
+                    if (selectedPlayer) {
+                      // Edit mode: Save changes
+                      setPlayerCustomData(prev => ({
+                        ...prev,
+                        [selectedPlayer.id]: {
+                          avatarSeed: playerEditData.avatarSeed
+                        }
+                      }))
+                      
+                      // Update the player in the players array
+                      setPlayers(prev => prev.map(p => 
+                        p.id === selectedPlayer.id 
+                          ? { 
+                              ...p, 
+                              name: playerEditData.name,
+                              email: playerEditData.email,
+                              phone: playerEditData.phone,
+                              gender: playerEditData.gender,
+                              grade: playerEditData.grade,
+                              nhc: playerEditData.nhc,
+                              plus_minus: playerEditData.plus_minus || null,
+                              is_active: playerEditData.is_active
+                            }
+                          : p
+                      ))
+                      
+                      handleClosePlayerDrawer()
+                    } else {
+                      // Add mode: Create new player via API
+                      try {
+                        const response = await fetch('/api/players', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
                             name: playerEditData.name,
                             email: playerEditData.email,
                             phone: playerEditData.phone,
@@ -2079,16 +2230,23 @@ function HomeContent() {
                             grade: playerEditData.grade,
                             nhc: playerEditData.nhc,
                             plus_minus: playerEditData.plus_minus || null,
-                            is_active: playerEditData.is_active
-                          }
-                        : p
-                    ))
-                    
-                    handleClosePlayerDrawer()
+                            avatarSeed: playerEditData.avatarSeed,
+                            is_active: playerEditData.is_active,
+                          }),
+                        })
+
+                        if (!response.ok) throw new Error('Failed to create player')
+
+                        handleClosePlayerDrawer()
+                        fetchPlayers()
+                      } catch (error) {
+                        alert('Failed to create player')
+                      }
+                    }
                   }}
                   className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm"
                 >
-                  Save changes
+                  {selectedPlayer ? 'Save changes' : 'Add player'}
                 </button>
               </div>
             </div>
@@ -2243,63 +2401,55 @@ function HomeContent() {
                                       {/* Court Header */}
                                       <div className="bg-gray-50 border-b border-gray-200 px-4 py-2">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-xs font-semibold text-gray-700">{match.court}</span>
+                                          <span className="text-xs font-semibold text-gray-700">{getCourtDisplayNameFromString(match.court)}</span>
                                           <span className="text-[10px] text-gray-400">•</span>
                                           <span className="text-[10px] text-gray-500 capitalize">{match.surface_type}</span>
                                         </div>
                                       </div>
                                       
                                       {/* Match Players */}
-                                      <div className="p-3 space-y-3">
-                                        {/* Team 1 */}
-                                        <div className="space-y-1.5">
-                                          {match.team1?.map((player: any) => {
-                                            const avatarSeed = getPlayerAvatarSeed(player.id, player.name)
-                                            const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
-                                            return (
-                                              <div key={player.id} className="flex items-center gap-2">
-                                                <img 
-                                                  src={avatarUrl} 
-                                                  alt={player.name}
-                                                  className="w-6 h-6 rounded-full flex-shrink-0"
-                                                />
-                                                <div className="min-w-0 flex-1">
-                                                  <div className="text-xs font-medium text-gray-900 truncate">{player.name}</div>
-                                                  <div className="text-[10px] text-gray-500">
-                                                    {player.gender} • {translateGrade(player.grade)}{player.plus_minus || ''}
-                                                  </div>
+                                      <div className="p-3">
+                                        <div className="flex items-center gap-3">
+                                          {/* Team 1 */}
+                                          <div className="flex-1 flex flex-wrap items-center gap-2">
+                                            {match.team1?.map((player: any) => {
+                                              const avatarSeed = getPlayerAvatarSeed(player.id, player.name)
+                                              const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
+                                              return (
+                                                <div key={player.id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 border border-gray-200 rounded-full">
+                                                  <img 
+                                                    src={avatarUrl} 
+                                                    alt={player.name}
+                                                    className="w-5 h-5 rounded-full flex-shrink-0"
+                                                  />
+                                                  <span className="text-xs font-medium text-gray-900">{player.name}</span>
                                                 </div>
-                                              </div>
-                                            )
-                                          })}
-                                        </div>
-                                        
-                                        {/* VS */}
-                                        <div className="text-center">
-                                          <span className="text-xs font-bold text-gray-400">vs</span>
-                                        </div>
-                                        
-                                        {/* Team 2 */}
-                                        <div className="space-y-1.5">
-                                          {match.team2?.map((player: any) => {
-                                            const avatarSeed = getPlayerAvatarSeed(player.id, player.name)
-                                            const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
-                                            return (
-                                              <div key={player.id} className="flex items-center gap-2">
-                                                <img 
-                                                  src={avatarUrl} 
-                                                  alt={player.name}
-                                                  className="w-6 h-6 rounded-full flex-shrink-0"
-                                                />
-                                                <div className="min-w-0 flex-1">
-                                                  <div className="text-xs font-medium text-gray-900 truncate">{player.name}</div>
-                                                  <div className="text-[10px] text-gray-500">
-                                                    {player.gender} • {translateGrade(player.grade)}{player.plus_minus || ''}
-                                                  </div>
+                                              )
+                                            })}
+                                          </div>
+                                          
+                                          {/* VS */}
+                                          <div className="flex-shrink-0">
+                                            <span className="text-xs font-bold text-gray-400">vs</span>
+                                          </div>
+                                          
+                                          {/* Team 2 */}
+                                          <div className="flex-1 flex flex-wrap items-center justify-end gap-2">
+                                            {match.team2?.map((player: any) => {
+                                              const avatarSeed = getPlayerAvatarSeed(player.id, player.name)
+                                              const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
+                                              return (
+                                                <div key={player.id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 border border-gray-200 rounded-full">
+                                                  <img 
+                                                    src={avatarUrl} 
+                                                    alt={player.name}
+                                                    className="w-5 h-5 rounded-full flex-shrink-0"
+                                                  />
+                                                  <span className="text-xs font-medium text-gray-900">{player.name}</span>
                                                 </div>
-                                              </div>
-                                            )
-                                          })}
+                                              )
+                                            })}
+                                          </div>
                                         </div>
                                       </div>
                                       {match.notes && (
@@ -2326,7 +2476,7 @@ function HomeContent() {
                       <div className="flex flex-wrap gap-2">
                         {eventDrawerData.courts.map((court: any) => (
                           <div key={court.court_id} className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg text-sm">
-                            <span className="font-medium text-gray-900">{court.court_name}</span>
+                            <span className="font-medium text-gray-900">{getCourtDisplayNameFromString(court.court_name)}</span>
                             <span className="text-xs text-gray-500 capitalize">({court.surface_type})</span>
                           </div>
                         ))}
