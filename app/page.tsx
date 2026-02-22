@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { ChevronUp, ChevronDown, Search } from 'lucide-react'
 import type { Event, Player, Court } from '@/database-types'
 import { translateGrade } from '@/lib/utils/grade-utils'
 
 type TabType = 'events' | 'players' | 'courts'
+type SortDirection = 'asc' | 'desc'
 
 function HomeContent() {
   const router = useRouter()
@@ -24,10 +26,16 @@ function HomeContent() {
   const [events, setEvents] = useState<Event[]>([])
   const [creatingEvent, setCreatingEvent] = useState(false)
   const [eventError, setEventError] = useState<string | null>(null)
+  const [eventSortField, setEventSortField] = useState<'name' | 'event_date' | 'start_time' | 'total_sets' | 'player_count' | 'status'>('event_date')
+  const [eventSortDirection, setEventSortDirection] = useState<SortDirection>('desc')
+  const [eventSearchTerm, setEventSearchTerm] = useState('')
   
   // Players state
   const [players, setPlayers] = useState<Player[]>([])
   const [showPlayerForm, setShowPlayerForm] = useState(false)
+  const [playerSortField, setPlayerSortField] = useState<'name' | 'gender' | 'grade'>('name')
+  const [playerSortDirection, setPlayerSortDirection] = useState<SortDirection>('asc')
+  const [playerSearchTerm, setPlayerSearchTerm] = useState('')
   const [playerForm, setPlayerForm] = useState({
     name: '',
     email: '',
@@ -41,6 +49,9 @@ function HomeContent() {
   // Courts state
   const [courts, setCourts] = useState<Court[]>([])
   const [showCourtForm, setShowCourtForm] = useState(false)
+  const [courtSortField, setCourtSortField] = useState<'name' | 'surface_type'>('name')
+  const [courtSortDirection, setCourtSortDirection] = useState<SortDirection>('asc')
+  const [courtSearchTerm, setCourtSearchTerm] = useState('')
   const [courtForm, setCourtForm] = useState({
     name: '',
     surface_type: 'hard' as 'hard' | 'grass',
@@ -263,6 +274,159 @@ function HomeContent() {
     e.target.value = ''
   }
 
+  // Sorting and filtering for events
+  const handleEventSort = (field: typeof eventSortField) => {
+    if (eventSortField === field) {
+      setEventSortDirection(eventSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setEventSortField(field)
+      setEventSortDirection('asc')
+    }
+  }
+
+  const filteredAndSortedEvents = useMemo(() => {
+    let filtered = events.filter(event => {
+      const searchLower = eventSearchTerm.toLowerCase()
+      return event.name.toLowerCase().includes(searchLower)
+    })
+
+    filtered.sort((a, b) => {
+      let aVal: any
+      let bVal: any
+
+      // Handle special fields
+      if (eventSortField === 'player_count') {
+        aVal = (a as any).player_count || 0
+        bVal = (b as any).player_count || 0
+      } else if (eventSortField === 'status') {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const aDate = new Date(a.event_date)
+        aDate.setHours(0, 0, 0, 0)
+        const bDate = new Date(b.event_date)
+        bDate.setHours(0, 0, 0, 0)
+        aVal = aDate < today ? 1 : 0 // 1 for completed, 0 for coming up
+        bVal = bDate < today ? 1 : 0
+      } else {
+        aVal = a[eventSortField]
+        bVal = b[eventSortField]
+      }
+
+      // Handle null/undefined
+      if (aVal === null || aVal === undefined) return 1
+      if (bVal === null || bVal === undefined) return -1
+
+      // Convert to comparable values
+      if (eventSortField === 'event_date') {
+        aVal = new Date(aVal).getTime()
+        bVal = new Date(bVal).getTime()
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase()
+        bVal = bVal.toLowerCase()
+      }
+
+      if (aVal < bVal) return eventSortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return eventSortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+
+    return filtered
+  }, [events, eventSearchTerm, eventSortField, eventSortDirection])
+
+  const EventSortIcon = ({ field }: { field: typeof eventSortField }) => {
+    if (eventSortField !== field) return null
+    return eventSortDirection === 'asc' ? 
+      <ChevronUp className="w-4 h-4 text-blue-600" /> : 
+      <ChevronDown className="w-4 h-4 text-blue-600" />
+  }
+
+  // Sorting and filtering for players
+  const handlePlayerSort = (field: typeof playerSortField) => {
+    if (playerSortField === field) {
+      setPlayerSortDirection(playerSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setPlayerSortField(field)
+      setPlayerSortDirection('asc')
+    }
+  }
+
+  const filteredAndSortedPlayers = useMemo(() => {
+    let filtered = players.filter(player => {
+      const searchLower = playerSearchTerm.toLowerCase()
+      return player.name.toLowerCase().includes(searchLower) ||
+             translateGrade(player.grade).toLowerCase().includes(searchLower)
+    })
+
+    filtered.sort((a, b) => {
+      let aVal: any = a[playerSortField]
+      let bVal: any = b[playerSortField]
+
+      if (aVal === null || aVal === undefined) return 1
+      if (bVal === null || bVal === undefined) return -1
+
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase()
+        bVal = bVal.toLowerCase()
+      }
+
+      if (aVal < bVal) return playerSortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return playerSortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+
+    return filtered
+  }, [players, playerSearchTerm, playerSortField, playerSortDirection])
+
+  const PlayerSortIcon = ({ field }: { field: typeof playerSortField }) => {
+    if (playerSortField !== field) return null
+    return playerSortDirection === 'asc' ? 
+      <ChevronUp className="w-4 h-4 text-blue-600" /> : 
+      <ChevronDown className="w-4 h-4 text-blue-600" />
+  }
+
+  // Sorting and filtering for courts
+  const handleCourtSort = (field: typeof courtSortField) => {
+    if (courtSortField === field) {
+      setCourtSortDirection(courtSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setCourtSortField(field)
+      setCourtSortDirection('asc')
+    }
+  }
+
+  const filteredAndSortedCourts = useMemo(() => {
+    let filtered = courts.filter(court => {
+      const searchLower = courtSearchTerm.toLowerCase()
+      return court.name.toLowerCase().includes(searchLower)
+    })
+
+    filtered.sort((a, b) => {
+      let aVal: any = a[courtSortField]
+      let bVal: any = b[courtSortField]
+
+      if (aVal === null || aVal === undefined) return 1
+      if (bVal === null || bVal === undefined) return -1
+
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase()
+        bVal = bVal.toLowerCase()
+      }
+
+      if (aVal < bVal) return courtSortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return courtSortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+
+    return filtered
+  }, [courts, courtSearchTerm, courtSortField, courtSortDirection])
+
+  const CourtSortIcon = ({ field }: { field: typeof courtSortField }) => {
+    if (courtSortField !== field) return null
+    return courtSortDirection === 'asc' ? 
+      <ChevronUp className="w-4 h-4 text-blue-600" /> : 
+      <ChevronDown className="w-4 h-4 text-blue-600" />
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen p-8">
@@ -283,15 +447,27 @@ function HomeContent() {
         {/* EVENTS TAB */}
         {activeTab === 'events' && (
           <div>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-6 gap-4">
               <h1 className="text-3xl font-bold text-gray-800">Events</h1>
-              <button
-                onClick={createNewEvent}
-                disabled={creatingEvent}
-                className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-semibold"
-              >
-                {creatingEvent ? 'Creating...' : 'Create new event'}
-              </button>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search events..."
+                    value={eventSearchTerm}
+                    onChange={(e) => setEventSearchTerm(e.target.value)}
+                    className="w-64 pl-9 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
+                </div>
+                <button
+                  onClick={createNewEvent}
+                  disabled={creatingEvent}
+                  className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-semibold whitespace-nowrap"
+                >
+                  {creatingEvent ? 'Creating...' : 'Create new event'}
+                </button>
+              </div>
             </div>
 
             {eventError && (
@@ -304,20 +480,91 @@ function HomeContent() {
               <div className="bg-white rounded-lg shadow-md p-12 text-center">
                 <p className="text-gray-500 text-lg">No events yet. Click "Create New Event" to begin!</p>
               </div>
+            ) : filteredAndSortedEvents.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-md p-12 text-center">
+                <p className="text-gray-500 text-lg">No events match your search.</p>
+              </div>
             ) : (
               <div className="bg-white rounded-lg shadow-md overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Event Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sets</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleEventSort('name')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Event Name
+                          <span className={eventSortField === 'name' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <EventSortIcon field="name" />
+                            {eventSortField !== 'name' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleEventSort('event_date')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Date
+                          <span className={eventSortField === 'event_date' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <EventSortIcon field="event_date" />
+                            {eventSortField !== 'event_date' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleEventSort('start_time')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Time
+                          <span className={eventSortField === 'start_time' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <EventSortIcon field="start_time" />
+                            {eventSortField !== 'start_time' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleEventSort('total_sets')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Sets
+                          <span className={eventSortField === 'total_sets' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <EventSortIcon field="total_sets" />
+                            {eventSortField !== 'total_sets' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleEventSort('player_count')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Players
+                          <span className={eventSortField === 'player_count' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <EventSortIcon field="player_count" />
+                            {eventSortField !== 'player_count' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleEventSort('status')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Status
+                          <span className={eventSortField === 'status' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <EventSortIcon field="status" />
+                            {eventSortField !== 'status' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {events.map((event) => {
+                    {filteredAndSortedEvents.map((event) => {
                       const eventDate = new Date(event.event_date)
                       const formattedDate = eventDate.toLocaleDateString('en-US', {
                         weekday: 'short',
@@ -325,11 +572,19 @@ function HomeContent() {
                         day: 'numeric',
                         year: 'numeric',
                       })
+                      
+                      const today = new Date()
+                      today.setHours(0, 0, 0, 0)
+                      const eventDateOnly = new Date(event.event_date)
+                      eventDateOnly.setHours(0, 0, 0, 0)
+                      const isPast = eventDateOnly < today
+                      const status = isPast ? 'Completed' : 'Coming up'
+                      const statusColor = isPast ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-800'
 
                       return (
                         <tr key={event.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4">
-                            <Link href={`/events/${event.id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 transition">
+                            <Link href={`/events/${event.id}`} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition underline">
                               {event.name}
                             </Link>
                           </td>
@@ -337,15 +592,24 @@ function HomeContent() {
                             <div className="text-sm text-gray-600">{formattedDate}</div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-sm text-gray-600">{event.start_time || '-'}</div>
+                            <div className="text-sm text-gray-600">
+                              {event.start_time ? new Date(`2000-01-01T${event.start_time}`).toLocaleTimeString('en-US', { 
+                                hour: 'numeric', 
+                                minute: '2-digit',
+                                hour12: true 
+                              }) : '-'}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-600">{event.total_sets}</div>
                           </td>
-                          <td className="px-6 py-4 text-right">
-                            <Link href={`/events/${event.id}`} className="text-primary hover:text-blue-900 font-semibold">
-                              View →
-                            </Link>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-600">{(event as any).player_count || 0}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
+                              {status}
+                            </span>
                           </td>
                         </tr>
                       )
@@ -362,10 +626,20 @@ function HomeContent() {
         {/* PLAYERS TAB */}
         {activeTab === 'players' && (
           <div>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-6 gap-4">
               <h1 className="text-3xl font-bold text-gray-800">Players</h1>
-              <div className="flex gap-3">
-                <label className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold cursor-pointer">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search players..."
+                    value={playerSearchTerm}
+                    onChange={(e) => setPlayerSearchTerm(e.target.value)}
+                    className="w-64 pl-9 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
+                </div>
+                <label className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold cursor-pointer whitespace-nowrap">
                   Upload CSV
                   <input
                     type="file"
@@ -376,7 +650,7 @@ function HomeContent() {
                 </label>
                 <button
                   onClick={() => setShowPlayerForm(!showPlayerForm)}
-                  className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold"
+                  className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold whitespace-nowrap"
                 >
                   {showPlayerForm ? 'Cancel' : 'Add player'}
                 </button>
@@ -452,20 +726,57 @@ function HomeContent() {
               <div className="bg-white rounded-lg shadow-md p-12 text-center">
                 <p className="text-gray-500 text-lg">No players yet. Click "Add player" to begin!</p>
               </div>
+            ) : filteredAndSortedPlayers.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-md p-12 text-center">
+                <p className="text-gray-500 text-lg">No players match your search.</p>
+              </div>
             ) : (
               <div className="bg-white rounded-lg shadow-md overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gender</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handlePlayerSort('name')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Name
+                          <span className={playerSortField === 'name' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <PlayerSortIcon field="name" />
+                            {playerSortField !== 'name' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handlePlayerSort('gender')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Gender
+                          <span className={playerSortField === 'gender' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <PlayerSortIcon field="gender" />
+                            {playerSortField !== 'gender' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handlePlayerSort('grade')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Grade
+                          <span className={playerSortField === 'grade' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <PlayerSortIcon field="grade" />
+                            {playerSortField !== 'grade' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {players.map((player) => {
+                    {filteredAndSortedPlayers.map((player) => {
                       const initials = player.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
                       return (
                         <tr key={player.id} className="hover:bg-gray-50">
@@ -496,10 +807,20 @@ function HomeContent() {
         {/* COURTS TAB */}
         {activeTab === 'courts' && (
           <div>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-6 gap-4">
               <h1 className="text-3xl font-bold text-gray-800">Courts</h1>
-              <div className="flex gap-3">
-                <label className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold cursor-pointer">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search courts..."
+                    value={courtSearchTerm}
+                    onChange={(e) => setCourtSearchTerm(e.target.value)}
+                    className="w-64 pl-9 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
+                </div>
+                <label className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold cursor-pointer whitespace-nowrap">
                   Upload CSV
                   <input
                     type="file"
@@ -508,7 +829,7 @@ function HomeContent() {
                     className="hidden"
                   />
                 </label>
-                <button onClick={() => setShowCourtForm(!showCourtForm)} className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">{showCourtForm ? 'Cancel' : 'Add court'}</button>
+                <button onClick={() => setShowCourtForm(!showCourtForm)} className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold whitespace-nowrap">{showCourtForm ? 'Cancel' : 'Add court'}</button>
               </div>
             </div>
 
@@ -555,18 +876,44 @@ function HomeContent() {
               <div className="bg-white rounded-lg shadow-md p-12 text-center">
                 <p className="text-gray-500 text-lg">No courts yet. Click "Add court" to begin!</p>
               </div>
+            ) : filteredAndSortedCourts.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-md p-12 text-center">
+                <p className="text-gray-500 text-lg">No courts match your search.</p>
+              </div>
             ) : (
               <div className="bg-white rounded-lg shadow-md overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Court Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Surface Type</th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleCourtSort('name')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Court Name
+                          <span className={courtSortField === 'name' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <CourtSortIcon field="name" />
+                            {courtSortField !== 'name' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleCourtSort('surface_type')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Surface Type
+                          <span className={courtSortField === 'surface_type' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <CourtSortIcon field="surface_type" />
+                            {courtSortField !== 'surface_type' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {courts.map((court) => (
+                    {filteredAndSortedCourts.map((court) => (
                       <tr key={court.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4">
                           <div className="text-sm font-medium text-gray-900">{court.name}</div>

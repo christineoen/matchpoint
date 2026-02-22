@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { Plus, X, ClipboardList, Check } from 'lucide-react'
 import type { Event, Court, Player } from '@/database-types'
 import { translateGrade } from '@/lib/utils/grade-utils'
 
@@ -73,6 +74,7 @@ export default function EventDetailPage() {
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [settingsSaved, setSettingsSaved] = useState(false)
 
   useEffect(() => {
     fetchEvent()
@@ -137,6 +139,7 @@ export default function EventDetailPage() {
       })
       if (!response.ok) throw new Error('Failed to save settings')
       await fetchEvent()
+      setSettingsSaved(true)
       setCurrentStep('courts')
     } catch (error) {
       console.error('Error saving settings:', error)
@@ -257,8 +260,44 @@ export default function EventDetailPage() {
     setEventPlayers(reordered)
   }
 
+  function randomSelection() {
+    // Calculate how many players we need: 4 players per court
+    const playersNeeded = selectedCourts.length * 4
+    
+    if (playersNeeded === 0) {
+      alert('Please select courts first')
+      return
+    }
+    
+    // Get available players (not already added)
+    const availablePlayers = allPlayers.filter(p => !isPlayerAdded(p.id))
+    
+    if (availablePlayers.length < playersNeeded) {
+      alert(`Not enough players available. Need ${playersNeeded} players but only ${availablePlayers.length} available.`)
+      return
+    }
+    
+    // Shuffle and select random players
+    const shuffled = [...availablePlayers].sort(() => Math.random() - 0.5)
+    const selected = shuffled.slice(0, playersNeeded)
+    
+    // Add selected players
+    const newPlayers: EventPlayer[] = selected.map((player, index) => ({
+      player_id: player.id,
+      player_name: player.name,
+      grade: player.grade,
+      gender: player.gender as 'M' | 'F',
+      nhc: player.nhc || false,
+      plus_minus: player.plus_minus,
+      arrival_order: eventPlayers.length + index + 1,
+    }))
+    
+    setEventPlayers([...eventPlayers, ...newPlayers])
+  }
+
   async function savePlayers() {
     setSaving(true)
+    setGenerating(true)
     try {
       const response = await fetch(`/api/events/${eventId}/players`, {
         method: 'POST',
@@ -266,12 +305,37 @@ export default function EventDetailPage() {
         body: JSON.stringify({ players: eventPlayers }),
       })
       if (!response.ok) throw new Error('Failed to save players')
+      
+      // After saving players, generate matches automatically
+      const matchResponse = await fetch(`/api/events/${eventId}/generate-matches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          set_number: currentSet,
+          format: matchFormat,
+        }),
+      })
+      
+      if (!matchResponse.ok) {
+        const data = await matchResponse.json()
+        throw new Error(data.error || 'Failed to generate matches')
+      }
+      
+      // Fetch the newly generated matches
+      const matchesResponse = await fetch(`/api/events/${eventId}/matches`)
+      if (matchesResponse.ok) {
+        const matchesData = await matchesResponse.json()
+        setMatchesBySet(matchesData.matchesBySet || {})
+      }
+      
+      // Navigate to matches step
       setCurrentStep('matches')
     } catch (error) {
-      console.error('Error saving players:', error)
-      alert('Failed to save players')
+      console.error('Error saving players or generating matches:', error)
+      alert(error instanceof Error ? error.message : 'Failed to save players or generate matches')
     } finally {
       setSaving(false)
+      setGenerating(false)
     }
   }
 
@@ -321,7 +385,7 @@ export default function EventDetailPage() {
   })
   const setNumbers = Object.keys(matchesBySet).map(Number).sort((a, b) => a - b)
 
-  const isSettingsComplete = eventName && matchFormat && currentSet && eventDateInput && eventTimeInput
+  const isSettingsComplete = settingsSaved
   const isCourtsComplete = selectedCourts.length > 0
   const isPlayersComplete = eventPlayers.length > 0
 
@@ -362,137 +426,134 @@ export default function EventDetailPage() {
   })
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
+    <main className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <Link href="/" className="text-indigo-600 hover:text-indigo-700 mb-4 inline-flex items-center gap-2 font-medium">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Events
-          </Link>
-        </div>
-
         {/* Progress Steps */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+          <div className="flex items-start justify-between max-w-4xl mx-auto relative">
             {/* Settings */}
-            <div className="flex items-center flex-1">
+            <div className="flex flex-col items-center flex-1 relative">
               <button
                 onClick={() => setCurrentStep('settings')}
-                className={`flex items-center gap-3 ${currentStep === 'settings' ? '' : 'cursor-pointer hover:opacity-80'}`}
+                className={`flex flex-col items-center gap-1 relative z-10 ${currentStep === 'settings' ? '' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs border-2 ${
                   isSettingsComplete
-                    ? 'bg-green-500 text-white'
+                    ? 'border-green-500 bg-green-500 text-white'
                     : currentStep === 'settings'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-200 text-gray-600'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                    : 'border-gray-300 bg-white text-gray-600'
                 }`}>
-                  {isSettingsComplete ? '✓' : '⚙'}
+                  {isSettingsComplete ? <Check className="w-4 h-4" /> : '1'}
                 </div>
-                <div className="text-left">
-                  <div className={`text-sm font-medium ${currentStep === 'settings' ? 'text-indigo-600' : 'text-gray-900'}`}>
-                    Settings
+                <div className="text-center">
+                  <div className={`text-sm font-semibold ${currentStep === 'settings' ? 'text-gray-900' : 'text-gray-700'}`}>
+                    Game settings
                   </div>
-                  <div className="text-xs text-gray-500">Configure format</div>
+                  <div className="text-xs text-gray-500">{currentSet} set</div>
                 </div>
               </button>
-              <div className={`flex-1 h-0.5 mx-4 ${isSettingsComplete ? 'bg-green-500' : 'bg-gray-200'}`} />
             </div>
 
-            {/* Step 1: Courts */}
-            <div className="flex items-center flex-1">
+            {/* Step 2: Courts */}
+            <div className="flex flex-col items-center flex-1 relative">
               <button
                 onClick={() => isSettingsComplete && setCurrentStep('courts')}
                 disabled={!isSettingsComplete}
-                className={`flex items-center gap-3 ${!isSettingsComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
+                className={`flex flex-col items-center gap-1 relative z-10 ${!isSettingsComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs border-2 ${
                   isCourtsComplete
-                    ? 'bg-green-500 text-white'
+                    ? 'border-green-500 bg-green-500 text-white'
                     : currentStep === 'courts'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-200 text-gray-600'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                    : 'border-gray-300 bg-white text-gray-600'
                 }`}>
-                  {isCourtsComplete ? '✓' : '1'}
+                  {isCourtsComplete ? <Check className="w-4 h-4" /> : '2'}
                 </div>
-                <div className="text-left">
-                  <div className={`text-sm font-medium ${currentStep === 'courts' ? 'text-indigo-600' : 'text-gray-900'}`}>
-                    Choose Courts
+                <div className="text-center">
+                  <div className={`text-sm font-semibold ${currentStep === 'courts' ? 'text-gray-900' : 'text-gray-700'}`}>
+                    Choose courts
                   </div>
                   <div className="text-xs text-gray-500">{selectedCourts.length} selected</div>
                 </div>
               </button>
-              <div className={`flex-1 h-0.5 mx-4 ${isCourtsComplete ? 'bg-green-500' : 'bg-gray-200'}`} />
             </div>
 
-            {/* Step 2: Players */}
-            <div className="flex items-center flex-1">
+            {/* Step 3: Players */}
+            <div className="flex flex-col items-center flex-1 relative">
               <button
                 onClick={() => isCourtsComplete && setCurrentStep('players')}
                 disabled={!isCourtsComplete}
-                className={`flex items-center gap-3 ${!isCourtsComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
+                className={`flex flex-col items-center gap-1 relative z-10 ${!isCourtsComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs border-2 ${
                   isPlayersComplete
-                    ? 'bg-green-500 text-white'
+                    ? 'border-green-500 bg-green-500 text-white'
                     : currentStep === 'players'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-200 text-gray-600'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                    : 'border-gray-300 bg-white text-gray-600'
                 }`}>
-                  {isPlayersComplete ? '✓' : '2'}
+                  {isPlayersComplete ? <Check className="w-4 h-4" /> : '3'}
                 </div>
-                <div className="text-left">
-                  <div className={`text-sm font-medium ${currentStep === 'players' ? 'text-indigo-600' : 'text-gray-900'}`}>
-                    Choose Players
+                <div className="text-center">
+                  <div className={`text-sm font-semibold ${currentStep === 'players' ? 'text-gray-900' : 'text-gray-700'}`}>
+                    Choose players
                   </div>
                   <div className="text-xs text-gray-500">{eventPlayers.length} selected</div>
                 </div>
               </button>
-              <div className={`flex-1 h-0.5 mx-4 ${isPlayersComplete ? 'bg-green-500' : 'bg-gray-200'}`} />
             </div>
 
-            {/* Step 3: Matches */}
-            <div className="flex items-center">
+            {/* Step 4: Matches */}
+            <div className="flex flex-col items-center flex-1 relative">
               <button
                 onClick={() => isPlayersComplete && setCurrentStep('matches')}
                 disabled={!isPlayersComplete}
-                className={`flex items-center gap-3 ${!isPlayersComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
+                className={`flex flex-col items-center gap-1 relative z-10 ${!isPlayersComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
               >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs border-2 ${
                   currentStep === 'matches'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-200 text-gray-600'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                    : 'border-gray-300 bg-white text-gray-600'
                 }`}>
-                  3
+                  4
                 </div>
-                <div className="text-left">
-                  <div className={`text-sm font-medium ${currentStep === 'matches' ? 'text-indigo-600' : 'text-gray-900'}`}>
-                    Generate Matches
+                <div className="text-center">
+                  <div className={`text-sm font-semibold ${currentStep === 'matches' ? 'text-gray-900' : 'text-gray-700'}`}>
+                    Match maker
                   </div>
                   <div className="text-xs text-gray-500">View schedule</div>
                 </div>
               </button>
             </div>
+
+            {/* Connecting Lines - Behind circles */}
+            <div className="absolute top-3.5 left-0 right-0 flex items-center justify-between px-[12.5%]" style={{zIndex: 0}}>
+              <div className="w-7" />
+              <div className={`flex-1 h-px ${isSettingsComplete ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <div className="w-7" />
+              <div className={`flex-1 h-px ${isCourtsComplete ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <div className="w-7" />
+              <div className={`flex-1 h-px ${isPlayersComplete ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <div className="w-7" />
+            </div>
           </div>
         </div>
 
         {/* Content Area */}
-        <div className="bg-white rounded-xl shadow-sm p-8">
+        <div className="bg-white rounded-xl shadow-sm p-6">
 
           {/* SETTINGS STEP */}
           {currentStep === 'settings' && (
             <div className="max-w-2xl mx-auto pb-24">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure Event Settings</h2>
-                <p className="text-gray-600">Set up the match format and current set before selecting courts and players</p>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Step 1: Game settings</h2>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">Event Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Event name</label>
                   <input
                     type="text"
                     value={eventName}
@@ -504,7 +565,7 @@ export default function EventDetailPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Event Date</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Event date</label>
                     <input
                       type="date"
                       value={eventDateInput}
@@ -513,7 +574,7 @@ export default function EventDetailPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Start Time</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Start time</label>
                     <input
                       type="time"
                       value={eventTimeInput}
@@ -525,7 +586,7 @@ export default function EventDetailPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Match Format</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Match format</label>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={() => setMatchFormat('Same-Sex')}
@@ -551,11 +612,17 @@ export default function EventDetailPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Current Set</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Current set</label>
                     <select
                       value={currentSet}
                       onChange={(e) => setCurrentSet(parseInt(e.target.value))}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg"
+                      className="w-full px-4 py-3 pr-10 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg appearance-none bg-white"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.75rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em'
+                      }}
                     >
                       {[1, 2, 3, 4, 5, 6].map(n => (
                         <option key={n} value={n}>Set {n}</option>
@@ -565,14 +632,20 @@ export default function EventDetailPage() {
                 </div>
               </div>
 
-              {/* Sticky Footer with Continue Button */}
+              {/* Sticky Footer with Cancel and Continue Buttons */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
-                <div className="max-w-2xl mx-auto px-8 py-4">
+                <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between">
+                  <Link
+                    href="/"
+                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium"
+                  >
+                    Cancel
+                  </Link>
                   <button
                     onClick={saveSettings}
-                    disabled={saving}
-                    className={`w-full px-6 py-4 rounded-xl transition font-semibold text-lg ${
-                      saving
+                    disabled={saving || !eventName || !matchFormat || !currentSet || !eventDateInput || !eventTimeInput}
+                    className={`px-8 py-3 rounded-xl font-semibold transition ${
+                      saving || !eventName || !matchFormat || !currentSet || !eventDateInput || !eventTimeInput
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                         : 'bg-indigo-600 text-white hover:bg-indigo-700'
                     }`}
@@ -587,52 +660,54 @@ export default function EventDetailPage() {
           {/* COURTS STEP */}
           {currentStep === 'courts' && (
             <div className="pb-24">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 1: Choose Courts</h2>
-                <p className="text-gray-600">Select the courts that will be used for this event</p>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Step 2: Choose courts</h2>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Selected Courts ({selectedCourts.length})</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Selected courts</h3>
                     {selectedCourts.length > 0 && (
                       <button onClick={() => setSelectedCourts([])} className="text-sm text-red-600 hover:text-red-700 font-medium">
-                        Clear All
+                        Clear all
                       </button>
                     )}
                   </div>
                   {selectedCourts.length === 0 ? (
-                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center">
-                      <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      <p className="text-gray-500">Click courts on the right to add them</p>
+                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center bg-gray-50">
+                      <Plus className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                      <p className="text-gray-500">Click courts to add them</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {selectedCourts.map((sc) => (
                         <div
                           key={sc.court_id}
-                          className={`flex items-center justify-between p-4 rounded-xl border-2 ${
+                          className={`relative p-4 rounded-xl border-2 transition cursor-pointer hover:shadow-md ${
                             sc.surface_type === 'hard' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'
                           }`}
+                          onClick={() => removeCourt(sc.court_id)}
                         >
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-semibold text-gray-500 w-8">{sc.selection_order}.</span>
-                            <span className="font-bold text-lg">{sc.court_name}</span>
-                            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                              sc.surface_type === 'hard' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                            }`}>
-                              {sc.surface_type}
-                            </span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="font-bold text-lg text-gray-900">{sc.court_name}</div>
+                              <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-1 ${
+                                sc.surface_type === 'hard' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                              }`}>
+                                {sc.surface_type}
+                              </span>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeCourt(sc.court_id)
+                              }}
+                              className="text-red-600 hover:text-red-700 font-bold w-8 h-8 flex items-center justify-center"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => removeCourt(sc.court_id)}
-                            className="text-red-600 hover:text-red-700 font-bold text-2xl w-8 h-8 flex items-center justify-center"
-                          >
-                            ×
-                          </button>
                         </div>
                       ))}
                     </div>
@@ -640,9 +715,9 @@ export default function EventDetailPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Available Courts</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Available courts</h3>
                   {availableCourts.length === 0 ? (
-                    <p className="text-gray-500 text-center py-12">All courts have been selected</p>
+                    <p className="text-gray-500 text-center py-12 bg-gray-50 rounded-xl">All courts have been selected</p>
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
                       {availableCourts.map((court) => (
@@ -661,15 +736,15 @@ export default function EventDetailPage() {
                 </div>
               </div>
 
-              {/* Sticky Footer with Back and Continue Buttons */}
+              {/* Sticky Footer with Cancel and Continue Buttons */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
                 <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between">
-                  <button
-                    onClick={() => setCurrentStep('settings')}
-                    className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:border-gray-400 transition font-medium"
+                  <Link
+                    href="/"
+                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium"
                   >
-                    ← Back
-                  </button>
+                    Cancel
+                  </Link>
                   <button
                     onClick={saveCourts}
                     disabled={selectedCourts.length === 0 || saving}
@@ -689,19 +764,23 @@ export default function EventDetailPage() {
           {/* PLAYERS STEP */}
           {currentStep === 'players' && (
             <div className="pb-24">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 2: Choose Players</h2>
-                <p className="text-gray-600">Select the players who will participate in this event</p>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Step 3: Choose players</h2>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Selected Players ({eventPlayers.length})</h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Selected players</h3>
+                    {eventPlayers.length > 0 && (
+                      <button onClick={() => setEventPlayers([])} className="text-sm text-red-600 hover:text-red-700 font-medium">
+                        Clear all
+                      </button>
+                    )}
+                  </div>
                   {eventPlayers.length === 0 ? (
-                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center">
-                      <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
+                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center bg-gray-50">
+                      <Plus className="w-12 h-12 mx-auto text-gray-400 mb-3" />
                       <p className="text-gray-500">Search and click players to add them</p>
                     </div>
                   ) : (
@@ -709,13 +788,13 @@ export default function EventDetailPage() {
                       {eventPlayers.map((ep) => (
                         <div
                           key={ep.player_id}
-                          className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-300 transition"
+                          className="relative p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-indigo-300 transition cursor-pointer hover:shadow-md"
+                          onClick={() => removePlayer(ep.player_id)}
                         >
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-semibold text-gray-500 w-8">{ep.arrival_order}.</span>
-                            <div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
                               <div className="font-semibold text-gray-900">{ep.player_name}</div>
-                              <div className="flex gap-2 text-sm text-gray-600">
+                              <div className="flex gap-2 text-sm text-gray-600 mt-1">
                                 <span>{translateGrade(ep.grade)}{ep.plus_minus}</span>
                                 <span>•</span>
                                 <span>{ep.gender === 'M' ? 'Male' : 'Female'}</span>
@@ -727,13 +806,16 @@ export default function EventDetailPage() {
                                 )}
                               </div>
                             </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removePlayer(ep.player_id)
+                              }}
+                              className="text-red-600 hover:text-red-700 font-bold w-8 h-8 flex items-center justify-center"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => removePlayer(ep.player_id)}
-                            className="text-red-600 hover:text-red-700 font-bold text-2xl w-8 h-8 flex items-center justify-center"
-                          >
-                            ×
-                          </button>
                         </div>
                       ))}
                     </div>
@@ -741,66 +823,66 @@ export default function EventDetailPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Member List</h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Available players</h3>
+                    <button
+                      onClick={randomSelection}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium underline"
+                    >
+                      Random selection
+                    </button>
+                  </div>
                   <input
                     type="text"
                     placeholder="Search by name or grade..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                   <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                    {filteredPlayers.map((player) => {
-                      const added = isPlayerAdded(player.id)
-                      return (
-                        <button
-                          key={player.id}
-                          onClick={() => !added && addPlayer(player)}
-                          disabled={added}
-                          className={`w-full text-left p-4 rounded-xl transition ${
-                            added
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'hover:bg-indigo-50 border-2 border-transparent hover:border-indigo-300'
-                          }`}
-                        >
-                          <div className="font-semibold">{player.name}</div>
-                          <div className="flex gap-2 text-sm text-gray-600">
-                            <span>{translateGrade(player.grade)}{player.plus_minus}</span>
-                            <span>•</span>
-                            <span>{player.gender === 'M' ? 'Male' : 'Female'}</span>
-                            {player.nhc && (
-                              <>
-                                <span>•</span>
-                                <span className="text-orange-600 font-medium">NHC</span>
-                              </>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })}
+                    {filteredPlayers.filter(p => !isPlayerAdded(p.id)).map((player) => (
+                      <button
+                        key={player.id}
+                        onClick={() => addPlayer(player)}
+                        className="w-full text-left p-4 rounded-xl transition bg-white hover:bg-indigo-50 border-2 border-gray-200 hover:border-indigo-300 hover:shadow-md"
+                      >
+                        <div className="font-semibold">{player.name}</div>
+                        <div className="flex gap-2 text-sm text-gray-600 mt-1">
+                          <span>{translateGrade(player.grade)}{player.plus_minus}</span>
+                          <span>•</span>
+                          <span>{player.gender === 'M' ? 'Male' : 'Female'}</span>
+                          {player.nhc && (
+                            <>
+                              <span>•</span>
+                              <span className="text-orange-600 font-medium">NHC</span>
+                            </>
+                          )}
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* Sticky Footer with Back and Continue Buttons */}
+              {/* Sticky Footer with Cancel and Continue Buttons */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
                 <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between">
-                  <button
-                    onClick={() => setCurrentStep('courts')}
-                    className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:border-gray-400 transition font-medium"
+                  <Link
+                    href="/"
+                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium"
                   >
-                    ← Back
-                  </button>
+                    Cancel
+                  </Link>
                   <button
                     onClick={savePlayers}
-                    disabled={eventPlayers.length === 0 || saving}
+                    disabled={eventPlayers.length === 0 || saving || generating}
                     className={`px-8 py-3 rounded-xl font-semibold transition ${
-                      eventPlayers.length > 0 && !saving
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                      eventPlayers.length > 0 && !saving && !generating
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     }`}
                   >
-                    {saving ? 'Saving...' : 'Continue'}
+                    {saving || generating ? 'Generating matches...' : 'Make matches →'}
                   </button>
                 </div>
               </div>
@@ -810,16 +892,26 @@ export default function EventDetailPage() {
           {/* MATCHES STEP */}
           {currentStep === 'matches' && (
             <div className="pb-24">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 3: Generate Matches</h2>
-                <p className="text-gray-600">Create the match schedule for Set {currentSet} ({matchFormat})</p>
+              <div className="text-center mb-6">
+                <div className="flex items-center justify-center gap-4">
+                  <h2 className="text-2xl font-bold text-gray-900">Step 4: Review matches</h2>
+                  <button
+                    onClick={generateMatches}
+                    disabled={generating}
+                    className={`text-sm font-medium underline ${
+                      generating
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'text-blue-600 hover:text-blue-700'
+                    }`}
+                  >
+                    {generating ? 'Regenerating...' : 'Regenerate matches'}
+                  </button>
+                </div>
               </div>
 
-              {setNumbers.length === 0 || !matchesBySet[currentSet] ? (
+              {!matchesBySet[currentSet] || matchesBySet[currentSet].length === 0 ? (
                 <div className="text-center py-12">
-                  <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
+                  <ClipboardList className="w-16 h-16 mx-auto text-gray-400 mb-4" />
                   <p className="text-gray-600 mb-6">No matches generated yet for Set {currentSet}</p>
                   <button
                     onClick={generateMatches}
@@ -827,29 +919,14 @@ export default function EventDetailPage() {
                     className={`px-8 py-4 rounded-xl font-semibold text-lg transition ${
                       generating
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-gray-900 text-white hover:bg-gray-800'
                     }`}
                   >
-                    {generating ? 'Generating...' : '🎾 Generate Matches'}
+                    {generating ? 'Generating...' : '🎾 Generate matches'}
                   </button>
                 </div>
               ) : (
                 <div>
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-semibold text-gray-900">Set {currentSet} Matches</h3>
-                    <button
-                      onClick={generateMatches}
-                      disabled={generating}
-                      className={`px-6 py-3 rounded-xl font-semibold transition ${
-                        generating
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-green-600 text-white hover:bg-green-700'
-                      }`}
-                    >
-                      {generating ? 'Regenerating...' : 'Regenerate Matches'}
-                    </button>
-                  </div>
-
                   <div className="space-y-4">
                     {matchesBySet[currentSet].map((match) => (
                       <div key={match.id} className="border-2 border-gray-200 rounded-xl p-6 hover:border-gray-300 transition-colors">
@@ -909,13 +986,22 @@ export default function EventDetailPage() {
                 </div>
               )}
 
-              <div className="mt-8">
-                <button
-                  onClick={() => setCurrentStep('players')}
-                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:border-gray-400 transition font-medium"
-                >
-                  ← Back
-                </button>
+              {/* Sticky Footer with Cancel and Save Buttons */}
+              <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
+                <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between items-center">
+                  <Link
+                    href="/"
+                    className="px-6 py-3 text-gray-700 hover:text-gray-900 transition font-medium"
+                  >
+                    Cancel
+                  </Link>
+                  <Link
+                    href="/"
+                    className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-semibold"
+                  >
+                    Save and close
+                  </Link>
+                </div>
               </div>
             </div>
           )}

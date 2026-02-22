@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --primary: #6366f1;
-  --primary-dark: #4f46e5;
-  --primary-light: #818cf8;
+  --primary: #3b82f6;
+  --primary-dark: #2563eb;
+  --primary-light: #60a5fa;
   --secondary: #64748b;
   --danger: #ef4444;
   --success: #10b981;
@@ -18,5 +18,19 @@
 body {
   background: var(--background);
   color: #1e293b;
+}
+
+a {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+a:hover {
+  color: #2563eb;
+}
+
+/* Remove underline from header links */
+header a {
+  text-decoration: none;
 }
 
