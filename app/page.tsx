@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, Suspense, useMemo } from 'react'
+import { useEffect, useState, Suspense, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronUp, ChevronDown, Search } from 'lucide-react'
+import { ChevronUp, ChevronDown, Search, Check } from 'lucide-react'
 import type { Event, Player, Court } from '@/database-types'
 import { translateGrade } from '@/lib/utils/grade-utils'
 
@@ -20,6 +20,13 @@ function HomeContent() {
     if (tab && ['events', 'players', 'courts'].includes(tab)) {
       setActiveTab(tab)
     }
+    // Reset search boxes when tab changes
+    setEventSearchExpanded(false)
+    setEventSearchTerm('')
+    setPlayerSearchExpanded(false)
+    setPlayerSearchTerm('')
+    setCourtSearchExpanded(false)
+    setCourtSearchTerm('')
   }, [searchParams])
   
   // Events state
@@ -29,13 +36,21 @@ function HomeContent() {
   const [eventSortField, setEventSortField] = useState<'name' | 'event_date' | 'start_time' | 'total_sets' | 'player_count' | 'status'>('event_date')
   const [eventSortDirection, setEventSortDirection] = useState<SortDirection>('desc')
   const [eventSearchTerm, setEventSearchTerm] = useState('')
+  const [eventSearchExpanded, setEventSearchExpanded] = useState(false)
+  const eventSearchRef = useRef<HTMLDivElement>(null)
   
   // Players state
   const [players, setPlayers] = useState<Player[]>([])
   const [showPlayerForm, setShowPlayerForm] = useState(false)
+  const [showPlayerDropdown, setShowPlayerDropdown] = useState(false)
+  const [showPlayerCSVModal, setShowPlayerCSVModal] = useState(false)
+  const [playerCSVFile, setPlayerCSVFile] = useState<File | null>(null)
+  const playerDropdownRef = useRef<HTMLDivElement>(null)
   const [playerSortField, setPlayerSortField] = useState<'name' | 'gender' | 'grade'>('name')
   const [playerSortDirection, setPlayerSortDirection] = useState<SortDirection>('asc')
   const [playerSearchTerm, setPlayerSearchTerm] = useState('')
+  const [playerSearchExpanded, setPlayerSearchExpanded] = useState(false)
+  const playerSearchRef = useRef<HTMLDivElement>(null)
   const [playerForm, setPlayerForm] = useState({
     name: '',
     email: '',
@@ -49,19 +64,73 @@ function HomeContent() {
   // Courts state
   const [courts, setCourts] = useState<Court[]>([])
   const [showCourtForm, setShowCourtForm] = useState(false)
-  const [courtSortField, setCourtSortField] = useState<'name' | 'surface_type'>('name')
+  const [showCourtDropdown, setShowCourtDropdown] = useState(false)
+  const [showCourtCSVModal, setShowCourtCSVModal] = useState(false)
+  const [courtCSVFile, setCourtCSVFile] = useState<File | null>(null)
+  const [selectedCourt, setSelectedCourt] = useState<Court | null>(null)
+  const [showCourtDrawer, setShowCourtDrawer] = useState(false)
+  const [courtEditData, setCourtEditData] = useState<{
+    name: string
+    number: string
+    surface_type: 'hard' | 'grass'
+    days: string[]
+    status: string
+  } | null>(null)
+  const courtDropdownRef = useRef<HTMLDivElement>(null)
+  const [courtSortField, setCourtSortField] = useState<'name' | 'number' | 'surface_type' | 'availability' | 'status'>('name')
   const [courtSortDirection, setCourtSortDirection] = useState<SortDirection>('asc')
   const [courtSearchTerm, setCourtSearchTerm] = useState('')
+  const [courtSearchExpanded, setCourtSearchExpanded] = useState(false)
+  const courtSearchRef = useRef<HTMLDivElement>(null)
   const [courtForm, setCourtForm] = useState({
     name: '',
     surface_type: 'hard' as 'hard' | 'grass',
   })
+  
+  // Store custom court data (names, numbers, days)
+  const [courtCustomData, setCourtCustomData] = useState<{
+    [courtId: string]: {
+      name?: string
+      number?: string
+      days?: string[]
+      status?: string
+    }
+  }>({})
   
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchAll()
   }, [])
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (playerDropdownRef.current && !playerDropdownRef.current.contains(event.target as Node)) {
+        setShowPlayerDropdown(false)
+      }
+      if (courtDropdownRef.current && !courtDropdownRef.current.contains(event.target as Node)) {
+        setShowCourtDropdown(false)
+      }
+      if (eventSearchRef.current && !eventSearchRef.current.contains(event.target as Node)) {
+        if (eventSearchTerm === '') {
+          setEventSearchExpanded(false)
+        }
+      }
+      if (playerSearchRef.current && !playerSearchRef.current.contains(event.target as Node)) {
+        if (playerSearchTerm === '') {
+          setPlayerSearchExpanded(false)
+        }
+      }
+      if (courtSearchRef.current && !courtSearchRef.current.contains(event.target as Node)) {
+        if (courtSearchTerm === '') {
+          setCourtSearchExpanded(false)
+        }
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [eventSearchTerm, playerSearchTerm, courtSearchTerm])
 
   async function fetchAll() {
     await Promise.all([fetchEvents(), fetchPlayers(), fetchCourts()])
@@ -196,9 +265,15 @@ function HomeContent() {
   async function handlePlayersCSV(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    setPlayerCSVFile(file)
+    e.target.value = ''
+  }
+
+  async function importPlayersCSV() {
+    if (!playerCSVFile) return
 
     try {
-      const text = await file.text()
+      const text = await playerCSVFile.text()
       const lines = text.trim().split('\n')
       
       // Skip header row
@@ -228,20 +303,25 @@ function HomeContent() {
       const data = await response.json()
       alert(`Successfully imported ${data.count} players!`)
       fetchPlayers()
+      setShowPlayerCSVModal(false)
+      setPlayerCSVFile(null)
     } catch (error) {
       alert('Failed to import players: ' + (error instanceof Error ? error.message : 'Unknown error'))
     }
-    
-    // Reset file input
-    e.target.value = ''
   }
 
   async function handleCourtsCSV(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    setCourtCSVFile(file)
+    e.target.value = ''
+  }
+
+  async function importCourtsCSV() {
+    if (!courtCSVFile) return
 
     try {
-      const text = await file.text()
+      const text = await courtCSVFile.text()
       const lines = text.trim().split('\n')
       
       // Skip header row
@@ -266,12 +346,11 @@ function HomeContent() {
       const data = await response.json()
       alert(`Successfully imported ${data.count} courts!`)
       fetchCourts()
+      setShowCourtCSVModal(false)
+      setCourtCSVFile(null)
     } catch (error) {
       alert('Failed to import courts: ' + (error instanceof Error ? error.message : 'Unknown error'))
     }
-    
-    // Reset file input
-    e.target.value = ''
   }
 
   // Sorting and filtering for events
@@ -401,8 +480,40 @@ function HomeContent() {
     })
 
     filtered.sort((a, b) => {
-      let aVal: any = a[courtSortField]
-      let bVal: any = b[courtSortField]
+      let aVal: any
+      let bVal: any
+
+      if (courtSortField === 'number') {
+        const aIndex = courts.indexOf(a)
+        const bIndex = courts.indexOf(b)
+        const aNum = getCourtNumber(a.id, aIndex)
+        const bNum = getCourtNumber(b.id, bIndex)
+        // Try to parse as numbers, otherwise compare as strings
+        const aNumeric = parseInt(aNum)
+        const bNumeric = parseInt(bNum)
+        if (!isNaN(aNumeric) && !isNaN(bNumeric)) {
+          aVal = aNumeric
+          bVal = bNumeric
+        } else {
+          aVal = aNum.toLowerCase()
+          bVal = bNum.toLowerCase()
+        }
+      } else if (courtSortField === 'name') {
+        const aIndex = courts.indexOf(a)
+        const bIndex = courts.indexOf(b)
+        aVal = getCourtName(a.id, getCourtNumber(a.id, aIndex)).toLowerCase()
+        bVal = getCourtName(b.id, getCourtNumber(b.id, bIndex)).toLowerCase()
+      } else if (courtSortField === 'availability') {
+        aVal = getCourtDaysForId(a.id).length
+        bVal = getCourtDaysForId(b.id).length
+      } else if (courtSortField === 'status') {
+        const statusOrder = { available: 0, maintenance: 1, unavailable: 2 }
+        aVal = statusOrder[getCourtStatus(a.id) as keyof typeof statusOrder] ?? 3
+        bVal = statusOrder[getCourtStatus(b.id) as keyof typeof statusOrder] ?? 3
+      } else {
+        aVal = a[courtSortField]
+        bVal = b[courtSortField]
+      }
 
       if (aVal === null || aVal === undefined) return 1
       if (bVal === null || bVal === undefined) return -1
@@ -418,13 +529,85 @@ function HomeContent() {
     })
 
     return filtered
-  }, [courts, courtSearchTerm, courtSortField, courtSortDirection])
+  }, [courts, courtSearchTerm, courtSortField, courtSortDirection, courtCustomData])
 
   const CourtSortIcon = ({ field }: { field: typeof courtSortField }) => {
     if (courtSortField !== field) return null
     return courtSortDirection === 'asc' ? 
       <ChevronUp className="w-4 h-4 text-blue-600" /> : 
       <ChevronDown className="w-4 h-4 text-blue-600" />
+  }
+
+  // Generate random days for courts (for demo purposes)
+  const getCourtDays = (courtId: string) => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    const seed = courtId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    const numDays = (seed % 4) + 3 // 3-6 days
+    const selectedDays: string[] = []
+    const usedIndices = new Set<number>()
+    
+    let attempts = 0
+    while (selectedDays.length < numDays && attempts < 20) {
+      const dayIndex = (seed + attempts * 13) % days.length
+      if (!usedIndices.has(dayIndex)) {
+        usedIndices.add(dayIndex)
+        selectedDays.push(days[dayIndex])
+      }
+      attempts++
+    }
+    
+    // Sort by day order
+    return selectedDays.sort((a, b) => days.indexOf(a) - days.indexOf(b))
+  }
+
+  // Generate court number based on court ID
+  const getCourtNumber = (courtId: string, index: number) => {
+    return courtCustomData[courtId]?.number ?? String(index + 1)
+  }
+
+  // Generate realistic court names
+  const getCourtName = (courtId: string, courtNumber: number) => {
+    if (courtCustomData[courtId]?.name) {
+      return courtCustomData[courtId].name
+    }
+    
+    const names = [
+      'Center Court',
+      'North Court',
+      'South Court',
+      'East Court',
+      'West Court',
+      'Championship Court',
+      'Stadium Court',
+      'Grandstand Court',
+      'Court One',
+      'Court Two',
+      'Court Three',
+      'Court Four',
+      'Court Five',
+      'Court Six',
+      'Practice Court A',
+      'Practice Court B',
+      'Riverside Court',
+      'Sunset Court',
+      'Garden Court',
+      'Pavilion Court'
+    ]
+    
+    return names[courtNumber - 1] || `Court ${courtNumber}`
+  }
+
+  // Get court days (custom or generated)
+  const getCourtDaysForId = (courtId: string) => {
+    if (courtCustomData[courtId]?.days) {
+      return courtCustomData[courtId].days!
+    }
+    return getCourtDays(courtId)
+  }
+
+  // Get court status
+  const getCourtStatus = (courtId: string) => {
+    return courtCustomData[courtId]?.status ?? 'available'
   }
 
   if (loading) {
@@ -450,22 +633,34 @@ function HomeContent() {
             <div className="flex justify-between items-center mb-6 gap-4">
               <h1 className="text-3xl font-bold text-gray-800">Events</h1>
               <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Search events..."
-                    value={eventSearchTerm}
-                    onChange={(e) => setEventSearchTerm(e.target.value)}
-                    className="w-64 pl-9 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  />
+                <div className="relative" ref={eventSearchRef}>
+                  {!eventSearchExpanded ? (
+                    <button
+                      onClick={() => setEventSearchExpanded(true)}
+                      className="p-3 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+                    >
+                      <Search className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Search events..."
+                        value={eventSearchTerm}
+                        onChange={(e) => setEventSearchTerm(e.target.value)}
+                        className="w-64 pl-9 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        autoFocus
+                      />
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={createNewEvent}
                   disabled={creatingEvent}
-                  className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-semibold whitespace-nowrap"
+                  className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-semibold w-44"
                 >
-                  {creatingEvent ? 'Creating...' : 'Create new event'}
+                  {creatingEvent ? 'Creating...' : 'Add event'}
                 </button>
               </div>
             </div>
@@ -629,45 +824,61 @@ function HomeContent() {
             <div className="flex justify-between items-center mb-6 gap-4">
               <h1 className="text-3xl font-bold text-gray-800">Players</h1>
               <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Search players..."
-                    value={playerSearchTerm}
-                    onChange={(e) => setPlayerSearchTerm(e.target.value)}
-                    className="w-64 pl-9 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  />
+                <div className="relative" ref={playerSearchRef}>
+                  {!playerSearchExpanded ? (
+                    <button
+                      onClick={() => setPlayerSearchExpanded(true)}
+                      className="p-3 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+                    >
+                      <Search className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Search players..."
+                        value={playerSearchTerm}
+                        onChange={(e) => setPlayerSearchTerm(e.target.value)}
+                        className="w-64 pl-9 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        autoFocus
+                      />
+                    </div>
+                  )}
                 </div>
-                <label className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold cursor-pointer whitespace-nowrap">
-                  Upload CSV
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handlePlayersCSV}
-                    className="hidden"
-                  />
-                </label>
-                <button
-                  onClick={() => setShowPlayerForm(!showPlayerForm)}
-                  className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold whitespace-nowrap"
-                >
-                  {showPlayerForm ? 'Cancel' : 'Add player'}
-                </button>
+                <div className="relative" ref={playerDropdownRef}>
+                  <div className="flex w-44">
+                    <button
+                      onClick={() => {
+                        setShowPlayerForm(!showPlayerForm)
+                        setShowPlayerDropdown(false)
+                      }}
+                      className="bg-primary text-white px-6 py-3 rounded-l-lg hover:bg-blue-700 transition font-semibold flex-1"
+                    >
+                      {showPlayerForm ? 'Cancel' : 'Add player'}
+                    </button>
+                    <button
+                      onClick={() => setShowPlayerDropdown(!showPlayerDropdown)}
+                      className="bg-primary text-white px-3 py-3 rounded-r-lg hover:bg-blue-700 transition border-l border-blue-600"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {showPlayerDropdown && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                      <button
+                        onClick={() => {
+                          setShowPlayerCSVModal(true)
+                          setShowPlayerDropdown(false)
+                        }}
+                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
+                      >
+                        Upload CSV
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-
-            {/* CSV Format Help */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-gray-700">
-                <strong>CSV Format:</strong> name,email,phone,gender,grade,nhc,plus_minus
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                Example: John Doe,john@email.com,555-1234,M,3,false,+
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                Gender: M or F | Grade: 1-5 (1=3A, 2=3, 3=2B, 4=2A, 5=2) | NHC: true or false | Plus/Minus: +, -, or empty
-              </p>
             </div>
 
             {showPlayerForm && (
@@ -810,40 +1021,61 @@ function HomeContent() {
             <div className="flex justify-between items-center mb-6 gap-4">
               <h1 className="text-3xl font-bold text-gray-800">Courts</h1>
               <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Search courts..."
-                    value={courtSearchTerm}
-                    onChange={(e) => setCourtSearchTerm(e.target.value)}
-                    className="w-64 pl-9 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  />
+                <div className="relative" ref={courtSearchRef}>
+                  {!courtSearchExpanded ? (
+                    <button
+                      onClick={() => setCourtSearchExpanded(true)}
+                      className="p-3 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+                    >
+                      <Search className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Search courts..."
+                        value={courtSearchTerm}
+                        onChange={(e) => setCourtSearchTerm(e.target.value)}
+                        className="w-64 pl-9 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        autoFocus
+                      />
+                    </div>
+                  )}
                 </div>
-                <label className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold cursor-pointer whitespace-nowrap">
-                  Upload CSV
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleCourtsCSV}
-                    className="hidden"
-                  />
-                </label>
-                <button onClick={() => setShowCourtForm(!showCourtForm)} className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold whitespace-nowrap">{showCourtForm ? 'Cancel' : 'Add court'}</button>
+                <div className="relative" ref={courtDropdownRef}>
+                  <div className="flex w-44">
+                    <button
+                      onClick={() => {
+                        setShowCourtForm(!showCourtForm)
+                        setShowCourtDropdown(false)
+                      }}
+                      className="bg-primary text-white px-6 py-3 rounded-l-lg hover:bg-blue-700 transition font-semibold flex-1"
+                    >
+                      {showCourtForm ? 'Cancel' : 'Add court'}
+                    </button>
+                    <button
+                      onClick={() => setShowCourtDropdown(!showCourtDropdown)}
+                      className="bg-primary text-white px-3 py-3 rounded-r-lg hover:bg-blue-700 transition border-l border-blue-600"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {showCourtDropdown && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                      <button
+                        onClick={() => {
+                          setShowCourtCSVModal(true)
+                          setShowCourtDropdown(false)
+                        }}
+                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
+                      >
+                        Upload CSV
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-
-            {/* CSV Format Help */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-gray-700">
-                <strong>CSV Format:</strong> name,surface_type
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                Example: Court 1,hard
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                Surface Type: hard or grass
-              </p>
             </div>
 
             {showCourtForm && (
@@ -890,7 +1122,7 @@ function HomeContent() {
                         onClick={() => handleCourtSort('name')}
                       >
                         <div className="flex items-center gap-2">
-                          Court Name
+                          Name
                           <span className={courtSortField === 'name' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
                             <CourtSortIcon field="name" />
                             {courtSortField !== 'name' && <ChevronUp className="w-4 h-4 text-gray-400" />}
@@ -899,43 +1131,108 @@ function HomeContent() {
                       </th>
                       <th 
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleCourtSort('number')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Number
+                          <span className={courtSortField === 'number' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <CourtSortIcon field="number" />
+                            {courtSortField !== 'number' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
                         onClick={() => handleCourtSort('surface_type')}
                       >
                         <div className="flex items-center gap-2">
-                          Surface Type
+                          Type
                           <span className={courtSortField === 'surface_type' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
                             <CourtSortIcon field="surface_type" />
                             {courtSortField !== 'surface_type' && <ChevronUp className="w-4 h-4 text-gray-400" />}
                           </span>
                         </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleCourtSort('availability')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Availability
+                          <span className={courtSortField === 'availability' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <CourtSortIcon field="availability" />
+                            {courtSortField !== 'availability' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none group"
+                        onClick={() => handleCourtSort('status')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Status
+                          <span className={courtSortField === 'status' ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
+                            <CourtSortIcon field="status" />
+                            {courtSortField !== 'status' && <ChevronUp className="w-4 h-4 text-gray-400" />}
+                          </span>
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredAndSortedCourts.map((court) => (
-                      <tr key={court.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900">{court.name}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              court.surface_type === 'hard' 
-                                ? 'bg-blue-100 text-blue-800' 
-                                : 'bg-green-100 text-green-800'
+                    {filteredAndSortedCourts.map((court, index) => {
+                      const courtNumber = getCourtNumber(court.id, index)
+                      const courtName = getCourtName(court.id, courtNumber)
+                      const courtDays = getCourtDaysForId(court.id)
+                      const courtStatus = getCourtStatus(court.id)
+                      
+                      return (
+                        <tr key={court.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4">
+                            <button
+                              onClick={() => {
+                                setSelectedCourt(court)
+                                setCourtEditData({
+                                  name: courtName,
+                                  number: courtNumber,
+                                  surface_type: court.surface_type,
+                                  days: courtDays,
+                                  status: courtStatus
+                                })
+                                setShowCourtDrawer(true)
+                              }}
+                              className="text-sm font-medium text-blue-600 hover:text-blue-800 underline text-left"
+                            >
+                              {courtName}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-600">{courtNumber}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-600">
+                              {court.surface_type === 'hard' ? 'Hard' : 'Grass'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-600">
+                              {courtDays.join(', ')}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              courtStatus === 'available' ? 'bg-green-100 text-green-800' :
+                              courtStatus === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
                             }`}>
-                              {court.surface_type === 'hard' ? 'Hard Court' : 'Grass Court'}
+                              {courtStatus === 'available' ? 'Available' :
+                               courtStatus === 'maintenance' ? 'Maintenance' :
+                               'Unavailable'}
                             </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                            Available
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -943,6 +1240,319 @@ function HomeContent() {
           </div>
         )}
       </div>
+
+      {/* Player CSV Upload Modal */}
+      {showPlayerCSVModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+            <h2 className="text-xl font-bold mb-4">Upload players CSV</h2>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-gray-700 mb-2">
+                <strong>CSV Format:</strong> name,email,phone,gender,grade,nhc,plus_minus
+              </p>
+              <p className="text-xs text-gray-600 mb-1">
+                <strong>Example:</strong> John Doe,john@email.com,555-1234,M,3,false,+
+              </p>
+              <p className="text-xs text-gray-600">
+                <strong>Field details:</strong>
+              </p>
+              <ul className="text-xs text-gray-600 mt-1 ml-4 list-disc">
+                <li>Gender: M or F</li>
+                <li>Grade: 1-5 (1=3A, 2=3, 3=2B, 4=2A, 5=2)</li>
+                <li>NHC: true or false</li>
+                <li>Plus/Minus: +, -, or empty</li>
+              </ul>
+            </div>
+
+            {!playerCSVFile ? (
+              <label className="block">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition cursor-pointer">
+                  <p className="text-gray-600 mb-2">Click to select CSV file</p>
+                  <p className="text-xs text-gray-500">or drag and drop</p>
+                </div>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handlePlayersCSV}
+                  className="hidden"
+                />
+              </label>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-green-800">
+                  <strong>File selected:</strong> {playerCSVFile.name}
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowPlayerCSVModal(false)
+                  setPlayerCSVFile(null)
+                }}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={importPlayersCSV}
+                disabled={!playerCSVFile}
+                className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+              >
+                Import players
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Court CSV Upload Modal */}
+      {showCourtCSVModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+            <h2 className="text-xl font-bold mb-4">Upload courts CSV</h2>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-gray-700 mb-2">
+                <strong>CSV Format:</strong> name,surface_type
+              </p>
+              <p className="text-xs text-gray-600 mb-1">
+                <strong>Example:</strong> Court 1,hard
+              </p>
+              <p className="text-xs text-gray-600">
+                <strong>Field details:</strong>
+              </p>
+              <ul className="text-xs text-gray-600 mt-1 ml-4 list-disc">
+                <li>Surface Type: hard or grass</li>
+              </ul>
+            </div>
+
+            {!courtCSVFile ? (
+              <label className="block">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition cursor-pointer">
+                  <p className="text-gray-600 mb-2">Click to select CSV file</p>
+                  <p className="text-xs text-gray-500">or drag and drop</p>
+                </div>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCourtsCSV}
+                  className="hidden"
+                />
+              </label>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-green-800">
+                  <strong>File selected:</strong> {courtCSVFile.name}
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowCourtCSVModal(false)
+                  setCourtCSVFile(null)
+                }}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={importCourtsCSV}
+                disabled={!courtCSVFile}
+                className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+              >
+                Import courts
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Court Profile Drawer */}
+      {showCourtDrawer && selectedCourt && courtEditData && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setShowCourtDrawer(false)}
+          />
+          <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl z-50 flex flex-col">
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Court profile</h2>
+                <button
+                  onClick={() => setShowCourtDrawer(false)}
+                  className="text-gray-400 hover:text-gray-600 transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form className="space-y-5 pb-6" onSubmit={(e) => {
+                e.preventDefault()
+                // Save changes to courtCustomData
+                setCourtCustomData(prev => ({
+                  ...prev,
+                  [selectedCourt.id]: {
+                    name: courtEditData.name,
+                    number: courtEditData.number,
+                    days: courtEditData.days,
+                    status: courtEditData.status
+                  }
+                }))
+                
+                // Update the court surface type in the courts array
+                setCourts(prev => prev.map(c => 
+                  c.id === selectedCourt.id 
+                    ? { ...c, surface_type: courtEditData.surface_type }
+                    : c
+                ))
+                
+                setShowCourtDrawer(false)
+              }}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                  <input
+                    type="text"
+                    value={courtEditData.name}
+                    onChange={(e) => setCourtEditData({ ...courtEditData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Number</label>
+                  <input
+                    type="text"
+                    value={courtEditData.number}
+                    onChange={(e) => setCourtEditData({ ...courtEditData, number: e.target.value.slice(0, 5) })}
+                    maxLength={5}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                  <select
+                    value={courtEditData.surface_type}
+                    onChange={(e) => setCourtEditData({ ...courtEditData, surface_type: e.target.value as 'hard' | 'grass' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    <option value="hard">Hard</option>
+                    <option value="grass">Grass</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <select
+                    value={courtEditData.status}
+                    onChange={(e) => setCourtEditData({ ...courtEditData, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    <option value="available">Available</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="unavailable">Unavailable</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Availability</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { full: 'Monday', short: 'Mon' },
+                      { full: 'Tuesday', short: 'Tue' },
+                      { full: 'Wednesday', short: 'Wed' },
+                      { full: 'Thursday', short: 'Thu' },
+                      { full: 'Friday', short: 'Fri' },
+                      { full: 'Saturday', short: 'Sat' },
+                      { full: 'Sunday', short: 'Sun' }
+                    ].map(day => {
+                      const isSelected = courtEditData.days.includes(day.short)
+                      return (
+                        <button
+                          key={day.short}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setCourtEditData({
+                                ...courtEditData,
+                                days: courtEditData.days.filter(d => d !== day.short)
+                              })
+                            } else {
+                              setCourtEditData({
+                                ...courtEditData,
+                                days: [...courtEditData.days, day.short].sort((a, b) => {
+                                  const order = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                                  return order.indexOf(a) - order.indexOf(b)
+                                })
+                              })
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-sm font-medium transition flex items-center gap-1 ${
+                            isSelected
+                              ? 'bg-green-600 text-white hover:bg-green-700'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3" />}
+                          {day.short}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            {/* Sticky Footer */}
+            <div className="border-t bg-white p-4">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCourtDrawer(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-semibold text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    // Save changes to courtCustomData
+                    setCourtCustomData(prev => ({
+                      ...prev,
+                      [selectedCourt.id]: {
+                        name: courtEditData.name,
+                        number: courtEditData.number,
+                        days: courtEditData.days,
+                        status: courtEditData.status
+                      }
+                    }))
+                    
+                    // Update the court surface type in the courts array
+                    setCourts(prev => prev.map(c => 
+                      c.id === selectedCourt.id 
+                        ? { ...c, surface_type: courtEditData.surface_type }
+                        : c
+                    ))
+                    
+                    setShowCourtDrawer(false)
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm"
+                >
+                  Save changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </main>
   )
 }

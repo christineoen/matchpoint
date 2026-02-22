@@ -65,14 +65,7 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <Link href="/" className="hover:opacity-80 transition">
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">Tennis Match Maker</h1>
-              {membership && (
-                <p className="text-xs text-gray-500">
-                  {membership.clubs?.name || 'Unknown Club'}
-                </p>
-              )}
-            </div>
+            <h1 className="text-lg font-semibold text-gray-900">Match Maker</h1>
           </Link>
 
           {/* Navigation Tabs - Centered */}
@@ -115,7 +108,7 @@ export default function Header() {
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="flex items-center gap-2 hover:opacity-80 transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full"
               >
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center font-medium text-sm shadow-sm">
+                <div className="w-9 h-9 rounded-full bg-black text-white flex items-center justify-center font-medium text-sm shadow-sm">
                   {getInitials(user.email)}
                 </div>
               </button>
