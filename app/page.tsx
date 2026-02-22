@@ -69,6 +69,8 @@ function HomeContent() {
   const [courtCSVFile, setCourtCSVFile] = useState<File | null>(null)
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null)
   const [showCourtDrawer, setShowCourtDrawer] = useState(false)
+  const [isDrawerClosing, setIsDrawerClosing] = useState(false)
+  const [isDrawerAnimating, setIsDrawerAnimating] = useState(false)
   const [courtEditData, setCourtEditData] = useState<{
     name: string
     number: string
@@ -473,19 +475,115 @@ function HomeContent() {
     }
   }
 
+  // Generate random days for courts (for demo purposes)
+  const getCourtDays = (courtId: string) => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    const seed = courtId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    const numDays = (seed % 4) + 3 // 3-6 days
+    const selectedDays: string[] = []
+    const usedIndices = new Set<number>()
+    
+    let attempts = 0
+    while (selectedDays.length < numDays && attempts < 20) {
+      const dayIndex = (seed + attempts * 13) % days.length
+      if (!usedIndices.has(dayIndex)) {
+        usedIndices.add(dayIndex)
+        selectedDays.push(days[dayIndex])
+      }
+      attempts++
+    }
+    
+    // Sort by day order
+    return selectedDays.sort((a, b) => days.indexOf(a) - days.indexOf(b))
+  }
+
+  // Generate court number based on court ID
+  const getCourtNumber = (courtId: string, index: number) => {
+    return courtCustomData[courtId]?.number ?? String(index + 1)
+  }
+
+  // Generate realistic court names
+  const getCourtName = (courtId: string, courtNumber: string) => {
+    if (courtCustomData[courtId]?.name) {
+      return courtCustomData[courtId].name
+    }
+    
+    const names = [
+      'Center Court',
+      'North Court',
+      'South Court',
+      'East Court',
+      'West Court',
+      'Championship Court',
+      'Stadium Court',
+      'Grandstand Court',
+      'Court One',
+      'Court Two',
+      'Court Three',
+      'Court Four',
+      'Court Five',
+      'Court Six',
+      'Practice Court A',
+      'Practice Court B',
+      'Riverside Court',
+      'Sunset Court',
+      'Garden Court',
+      'Pavilion Court'
+    ]
+    
+    const courtNum = parseInt(courtNumber)
+    return names[courtNum - 1] || `Court ${courtNumber}`
+  }
+
+  // Get court days (custom or generated)
+  const getCourtDaysForId = (courtId: string) => {
+    if (courtCustomData[courtId]?.days) {
+      return courtCustomData[courtId].days!
+    }
+    return getCourtDays(courtId)
+  }
+
+  // Get court status
+  const getCourtStatus = (courtId: string) => {
+    return courtCustomData[courtId]?.status ?? 'available'
+  }
+
+  // Handle drawer close with animation
+  const handleCloseDrawer = () => {
+    setIsDrawerClosing(true)
+    setTimeout(() => {
+      setShowCourtDrawer(false)
+      setIsDrawerClosing(false)
+      setIsDrawerAnimating(false)
+    }, 300) // Match the animation duration
+  }
+
+  // Trigger animation when drawer opens
+  useEffect(() => {
+    if (showCourtDrawer) {
+      // Small delay to trigger the animation
+      setTimeout(() => {
+        setIsDrawerAnimating(true)
+      }, 10)
+    }
+  }, [showCourtDrawer])
+
   const filteredAndSortedCourts = useMemo(() => {
     let filtered = courts.filter(court => {
       const searchLower = courtSearchTerm.toLowerCase()
       return court.name.toLowerCase().includes(searchLower)
     })
 
+    // Create a stable mapping of court IDs to their original indices for consistent numbering
+    const courtIndexMap = new Map(courts.map((court, index) => [court.id, index]))
+
     filtered.sort((a, b) => {
       let aVal: any
       let bVal: any
 
       if (courtSortField === 'number') {
-        const aIndex = courts.indexOf(a)
-        const bIndex = courts.indexOf(b)
+        const aIndex = courtIndexMap.get(a.id) ?? 0
+        const bIndex = courtIndexMap.get(b.id) ?? 0
         const aNum = getCourtNumber(a.id, aIndex)
         const bNum = getCourtNumber(b.id, bIndex)
         // Try to parse as numbers, otherwise compare as strings
@@ -499,8 +597,8 @@ function HomeContent() {
           bVal = bNum.toLowerCase()
         }
       } else if (courtSortField === 'name') {
-        const aIndex = courts.indexOf(a)
-        const bIndex = courts.indexOf(b)
+        const aIndex = courtIndexMap.get(a.id) ?? 0
+        const bIndex = courtIndexMap.get(b.id) ?? 0
         aVal = getCourtName(a.id, getCourtNumber(a.id, aIndex)).toLowerCase()
         bVal = getCourtName(b.id, getCourtNumber(b.id, bIndex)).toLowerCase()
       } else if (courtSortField === 'availability') {
@@ -536,78 +634,6 @@ function HomeContent() {
     return courtSortDirection === 'asc' ? 
       <ChevronUp className="w-4 h-4 text-blue-600" /> : 
       <ChevronDown className="w-4 h-4 text-blue-600" />
-  }
-
-  // Generate random days for courts (for demo purposes)
-  const getCourtDays = (courtId: string) => {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    const seed = courtId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-    const numDays = (seed % 4) + 3 // 3-6 days
-    const selectedDays: string[] = []
-    const usedIndices = new Set<number>()
-    
-    let attempts = 0
-    while (selectedDays.length < numDays && attempts < 20) {
-      const dayIndex = (seed + attempts * 13) % days.length
-      if (!usedIndices.has(dayIndex)) {
-        usedIndices.add(dayIndex)
-        selectedDays.push(days[dayIndex])
-      }
-      attempts++
-    }
-    
-    // Sort by day order
-    return selectedDays.sort((a, b) => days.indexOf(a) - days.indexOf(b))
-  }
-
-  // Generate court number based on court ID
-  const getCourtNumber = (courtId: string, index: number) => {
-    return courtCustomData[courtId]?.number ?? String(index + 1)
-  }
-
-  // Generate realistic court names
-  const getCourtName = (courtId: string, courtNumber: number) => {
-    if (courtCustomData[courtId]?.name) {
-      return courtCustomData[courtId].name
-    }
-    
-    const names = [
-      'Center Court',
-      'North Court',
-      'South Court',
-      'East Court',
-      'West Court',
-      'Championship Court',
-      'Stadium Court',
-      'Grandstand Court',
-      'Court One',
-      'Court Two',
-      'Court Three',
-      'Court Four',
-      'Court Five',
-      'Court Six',
-      'Practice Court A',
-      'Practice Court B',
-      'Riverside Court',
-      'Sunset Court',
-      'Garden Court',
-      'Pavilion Court'
-    ]
-    
-    return names[courtNumber - 1] || `Court ${courtNumber}`
-  }
-
-  // Get court days (custom or generated)
-  const getCourtDaysForId = (courtId: string) => {
-    if (courtCustomData[courtId]?.days) {
-      return courtCustomData[courtId].days!
-    }
-    return getCourtDays(courtId)
-  }
-
-  // Get court status
-  const getCourtStatus = (courtId: string) => {
-    return courtCustomData[courtId]?.status ?? 'available'
   }
 
   if (loading) {
@@ -1180,8 +1206,9 @@ function HomeContent() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredAndSortedCourts.map((court, index) => {
-                      const courtNumber = getCourtNumber(court.id, index)
+                    {filteredAndSortedCourts.map((court) => {
+                      const courtIndex = courts.findIndex(c => c.id === court.id)
+                      const courtNumber = getCourtNumber(court.id, courtIndex)
                       const courtName = getCourtName(court.id, courtNumber)
                       const courtDays = getCourtDaysForId(court.id)
                       const courtStatus = getCourtStatus(court.id)
@@ -1215,7 +1242,7 @@ function HomeContent() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-sm text-gray-600">
+                            <div className={`text-sm ${courtStatus === 'available' ? 'text-gray-600' : 'text-gray-400'}`}>
                               {courtDays.join(', ')}
                             </div>
                           </td>
@@ -1376,15 +1403,19 @@ function HomeContent() {
       {showCourtDrawer && selectedCourt && courtEditData && (
         <>
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
-            onClick={() => setShowCourtDrawer(false)}
+            className={`fixed inset-0 bg-black z-40 transition-opacity duration-300 ${
+              isDrawerAnimating && !isDrawerClosing ? 'opacity-50' : 'opacity-0'
+            }`}
+            onClick={handleCloseDrawer}
           />
-          <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl z-50 flex flex-col">
+          <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl z-50 flex flex-col transition-transform duration-300 ease-out ${
+            isDrawerAnimating && !isDrawerClosing ? 'translate-x-0' : 'translate-x-full'
+          }`}>
             <div className="flex-1 overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Court profile</h2>
                 <button
-                  onClick={() => setShowCourtDrawer(false)}
+                  onClick={handleCloseDrawer}
                   className="text-gray-400 hover:text-gray-600 transition"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1413,7 +1444,7 @@ function HomeContent() {
                     : c
                 ))
                 
-                setShowCourtDrawer(false)
+                handleCloseDrawer()
               }}>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
@@ -1438,73 +1469,161 @@ function HomeContent() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
-                  <select
-                    value={courtEditData.surface_type}
-                    onChange={(e) => setCourtEditData({ ...courtEditData, surface_type: e.target.value as 'hard' | 'grass' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  >
-                    <option value="hard">Hard</option>
-                    <option value="grass">Grass</option>
-                  </select>
+                  <div className="flex gap-4">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        value="hard"
+                        checked={courtEditData.surface_type === 'hard'}
+                        onChange={(e) => setCourtEditData({ ...courtEditData, surface_type: e.target.value as 'hard' | 'grass' })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Hard</span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        value="grass"
+                        checked={courtEditData.surface_type === 'grass'}
+                        onChange={(e) => setCourtEditData({ ...courtEditData, surface_type: e.target.value as 'hard' | 'grass' })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Grass</span>
+                    </label>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                  <select
-                    value={courtEditData.status}
-                    onChange={(e) => setCourtEditData({ ...courtEditData, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  >
-                    <option value="available">Available</option>
-                    <option value="maintenance">Maintenance</option>
-                    <option value="unavailable">Unavailable</option>
-                  </select>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCourtEditData({ ...courtEditData, status: 'available' })}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition border-2 ${
+                        courtEditData.status === 'available'
+                          ? 'bg-green-50 text-green-700 border-green-300'
+                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      Available
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCourtEditData({ ...courtEditData, status: 'maintenance' })}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition border-2 ${
+                        courtEditData.status === 'maintenance'
+                          ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
+                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      Maintenance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCourtEditData({ ...courtEditData, status: 'unavailable' })}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition border-2 ${
+                        courtEditData.status === 'unavailable'
+                          ? 'bg-red-50 text-red-700 border-red-300'
+                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      Unavailable
+                    </button>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Availability</label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { full: 'Monday', short: 'Mon' },
-                      { full: 'Tuesday', short: 'Tue' },
-                      { full: 'Wednesday', short: 'Wed' },
-                      { full: 'Thursday', short: 'Thu' },
-                      { full: 'Friday', short: 'Fri' },
-                      { full: 'Saturday', short: 'Sat' },
-                      { full: 'Sunday', short: 'Sun' }
-                    ].map(day => {
-                      const isSelected = courtEditData.days.includes(day.short)
-                      return (
-                        <button
-                          key={day.short}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setCourtEditData({
-                                ...courtEditData,
-                                days: courtEditData.days.filter(d => d !== day.short)
-                              })
-                            } else {
-                              setCourtEditData({
-                                ...courtEditData,
-                                days: [...courtEditData.days, day.short].sort((a, b) => {
-                                  const order = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-                                  return order.indexOf(a) - order.indexOf(b)
+                  <div className="space-y-2">
+                    {/* Weekdays */}
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { full: 'Monday', short: 'Mon' },
+                        { full: 'Tuesday', short: 'Tue' },
+                        { full: 'Wednesday', short: 'Wed' },
+                        { full: 'Thursday', short: 'Thu' },
+                        { full: 'Friday', short: 'Fri' }
+                      ].map(day => {
+                        const isSelected = courtEditData.days.includes(day.short)
+                        const isDisabled = courtEditData.status !== 'available'
+                        return (
+                          <button
+                            key={day.short}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => {
+                              if (isSelected) {
+                                setCourtEditData({
+                                  ...courtEditData,
+                                  days: courtEditData.days.filter(d => d !== day.short)
                                 })
-                              })
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded-full text-sm font-medium transition flex items-center gap-1 ${
-                            isSelected
-                              ? 'bg-green-600 text-white hover:bg-green-700'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3" />}
-                          {day.short}
-                        </button>
-                      )
-                    })}
+                              } else {
+                                setCourtEditData({
+                                  ...courtEditData,
+                                  days: [...courtEditData.days, day.short].sort((a, b) => {
+                                    const order = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                                    return order.indexOf(a) - order.indexOf(b)
+                                  })
+                                })
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-sm font-medium transition flex items-center gap-1 border-2 ${
+                              isDisabled
+                                ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                                : isSelected
+                                ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
+                                : 'bg-gray-100 text-gray-700 border-transparent hover:bg-gray-200'
+                            }`}
+                          >
+                            {isSelected && !isDisabled && <Check className="w-3 h-3 text-blue-700" />}
+                            {day.short}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {/* Weekend */}
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { full: 'Saturday', short: 'Sat' },
+                        { full: 'Sunday', short: 'Sun' }
+                      ].map(day => {
+                        const isSelected = courtEditData.days.includes(day.short)
+                        const isDisabled = courtEditData.status !== 'available'
+                        return (
+                          <button
+                            key={day.short}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => {
+                              if (isSelected) {
+                                setCourtEditData({
+                                  ...courtEditData,
+                                  days: courtEditData.days.filter(d => d !== day.short)
+                                })
+                              } else {
+                                setCourtEditData({
+                                  ...courtEditData,
+                                  days: [...courtEditData.days, day.short].sort((a, b) => {
+                                    const order = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                                    return order.indexOf(a) - order.indexOf(b)
+                                  })
+                                })
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-sm font-medium transition flex items-center gap-1 border-2 ${
+                              isDisabled
+                                ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                                : isSelected
+                                ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
+                                : 'bg-gray-100 text-gray-700 border-transparent hover:bg-gray-200'
+                            }`}
+                          >
+                            {isSelected && !isDisabled && <Check className="w-3 h-3 text-blue-700" />}
+                            {day.short}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
               </form>
@@ -1515,7 +1634,7 @@ function HomeContent() {
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowCourtDrawer(false)}
+                  onClick={handleCloseDrawer}
                   className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-semibold text-sm"
                 >
                   Cancel
@@ -1542,7 +1661,7 @@ function HomeContent() {
                         : c
                     ))
                     
-                    setShowCourtDrawer(false)
+                    handleCloseDrawer()
                   }}
                   className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm"
                 >
